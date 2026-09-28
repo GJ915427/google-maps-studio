@@ -107,6 +107,12 @@
     </div>
   </header>
 
+  <!-- ================= POC MODE SECURE HASH BANNER ================= -->
+  <div id="pocModeBanner" class="hidden bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-xs text-amber-800 text-center font-medium">
+    <i class="fa-solid fa-circle-info text-amber-600 mr-1.5"></i>
+    <span><strong>POC Fallback:</strong> Geen Google Maps API-sleutel gedetecteerd. Kaart draait op OpenStreetMap. Open de gedeelde tester-link met <code class="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold">#key=...</code> om Google Maps direct te activeren.</span>
+  </div>
+
   <!-- ================= MAIN CONTENT WRAPPER ================= -->
   <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col gap-6">
 
@@ -546,14 +552,51 @@
 
   <!-- ================= JAVASCRIPT APPLICATION CORE ================= -->
   <script>
-    // --- DEFAULT VALUES & STATE ---
-    const urlParams = new URLSearchParams(window.location.search);
-    const queryKey = urlParams.get('key') || urlParams.get('apiKey');
-    const DEFAULT_API_KEY = 'AIzaSyDwxeaOuCX8J6bWEG7MUDmmjYEwgmVwF2M';
-    
+    // --- SECURE POC API KEY RESOLUTION (GEEN HARDE SLEUTEL IN GIT) ---
+    function resolveSecureApiKey() {
+      // 1. Check URL Hash: #key=... of #apiKey=...
+      if (window.location.hash) {
+        const hashStr = window.location.hash.replace(/^#/, '');
+        const hashParams = new URLSearchParams(hashStr);
+        const hashKey = hashParams.get('key') || hashParams.get('apiKey');
+        if (hashKey && hashKey.trim()) {
+          const cleanKey = hashKey.trim();
+          sessionStorage.setItem('poc_gmaps_key', cleanKey);
+          try {
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+          } catch (e) {}
+          return cleanKey;
+        }
+      }
+
+      // 2. Check SessionStorage (onthouden gedurende deze browser-tab sessie)
+      const sessionKey = sessionStorage.getItem('poc_gmaps_key');
+      if (sessionKey && sessionKey.trim()) {
+        return sessionKey.trim();
+      }
+
+      // 3. Check Query parameter: ?key=... of ?apiKey=...
+      const queryParams = new URLSearchParams(window.location.search);
+      const queryKey = queryParams.get('key') || queryParams.get('apiKey');
+      if (queryKey && queryKey.trim()) {
+        sessionStorage.setItem('poc_gmaps_key', queryKey.trim());
+        return queryKey.trim();
+      }
+
+      // 4. Check LocalStorage (indien handmatig opgeslagen)
+      const localKey = localStorage.getItem('eh_gmaps_api_key');
+      if (localKey && localKey.trim()) {
+        return localKey.trim();
+      }
+
+      return '';
+    }
+
+    const resolvedKey = resolveSecureApiKey();
+
     const state = {
-      apiKey: queryKey || localStorage.getItem('eh_gmaps_api_key') || DEFAULT_API_KEY,
-      engine: localStorage.getItem('eh_maps_engine') || 'google',
+      apiKey: resolvedKey,
+      engine: resolvedKey ? (localStorage.getItem('eh_maps_engine') || 'google') : 'leaflet',
       lat: 50.812300,
       lng: 5.723400,
       zoom: 15,
@@ -585,7 +628,12 @@
       updateJsonPreview();
       initApiKeyInput();
 
-      if (state.engine === 'google') {
+      const banner = document.getElementById('pocModeBanner');
+      if (banner) {
+        banner.classList.toggle('hidden', !!state.apiKey);
+      }
+
+      if (state.engine === 'google' && state.apiKey) {
         loadGoogleMapsSdk();
       } else {
         initLeafletMap();
@@ -600,11 +648,17 @@
     }
 
     function loadGoogleMapsSdk() {
+      if (!state.apiKey) {
+        console.warn('Geen Google Maps API sleutel aanwezig. Schakel over naar Leaflet fallback.');
+        switchEngine('leaflet');
+        return;
+      }
+
       setLoading(true, 'Google Maps SDK laden...');
       document.getElementById('googleMapElement').classList.remove('hidden');
       document.getElementById('leafletMapElement').classList.add('hidden');
       document.getElementById('currentEngineLabel').textContent = 'Google Maps';
-      document.getElementById('engineStatusText').textContent = 'Google Maps (Actief)';
+      document.getElementById('engineStatusText').textContent = 'Google Maps (POC Actief)';
 
       if (window.google && window.google.maps) {
         initGoogleMap();
@@ -1337,6 +1391,7 @@
       }
       state.apiKey = key;
       localStorage.setItem('eh_gmaps_api_key', key);
+      sessionStorage.setItem('poc_gmaps_key', key);
       closeApiKeyModal();
       loadGoogleMapsSdk();
     }
