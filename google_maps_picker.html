@@ -319,24 +319,17 @@
             </div>
           </div>
 
-          <!-- ITEM 5: PERCEELOPPERVLAKTE (KADASTER DKK) - CLICKABLE FOR TOP-DOWN VIEW -->
-          <div onclick="toggleMapSatellite()" class="flex items-start px-5 py-3 hover:bg-teal-50/70 cursor-pointer transition-colors group" title="Klik om tussen Kaart en Satelliet te schakelen">
-            <div class="w-7 shrink-0 text-[#007b83] group-hover:scale-110 transition-transform mt-0.5">
+          <!-- ITEM 5: PERCEELOPPERVLAKTE (KADASTER DKK) -->
+          <div onclick="toggleMapSatellite()" class="flex items-start px-5 py-3 hover:bg-slate-50 cursor-pointer transition-colors group" title="Klik om tussen Kaart en Satelliet te schakelen">
+            <div class="w-7 shrink-0 text-[#007b83] mt-0.5">
               <i class="fa-solid fa-layer-group text-base"></i>
             </div>
             <div class="flex-1 min-w-0">
-              <div class="flex items-center justify-between">
-                <div class="text-sm font-normal text-google-dark">
-                  <strong id="displayPerceel" class="font-medium text-slate-800">411</strong> m² perceel
-                </div>
-                <span id="displayPerceelBadge" class="text-xxs font-medium text-[#007b83] bg-teal-50 group-hover:bg-[#007b83] group-hover:text-white px-2 py-0.5 rounded-full border border-teal-200 group-hover:border-[#007b83] transition-colors flex items-center gap-1">
-                  <i class="fa-solid fa-satellite"></i>
-                  <span>Bovenaanzicht</span>
-                </span>
+              <div class="text-sm font-normal text-google-dark">
+                <strong id="displayPerceel" class="font-medium text-slate-800">411</strong> m² perceel
               </div>
-              <div id="displayPerceelSub" class="text-xs text-google-gray mt-0.5 flex items-center gap-1.5">
-                <span>Kadastraal perceel Gronsveld B 2882</span>
-                <span class="text-xxs text-teal-600 font-medium group-hover:underline">• Toon op kaart</span>
+              <div id="displayPerceelSub" class="text-xs text-google-gray mt-0.5">
+                Kadastraal perceel Gronsveld B 2882
               </div>
             </div>
           </div>
@@ -351,7 +344,7 @@
                 <span id="displayHoogte">Hoogte <strong>9.3 m</strong> (nok)</span>
               </div>
               <div id="displayHoogteSub" class="text-xs text-google-gray mt-0.5">
-                Gebouwvolume 744 m³ • 2 bouwlagen (3D BAG)
+                Gebouwvolume 744 m³ • 3 bouwlagen (3D BAG AHN5)
               </div>
             </div>
           </div>
@@ -366,7 +359,7 @@
                 <span id="displayWoz">WOZ-waarde <strong>€ 435.000</strong></span>
               </div>
               <div id="displayWozSub" class="text-xs text-google-gray mt-0.5">
-                Peildatum 1 jan 2024 • <a href="https://www.wozwaardeloket.nl/" target="_blank" class="text-[#007b83] hover:underline inline-flex items-center gap-1 font-medium">WOZ-waardeloket <i class="fa-solid fa-arrow-up-right-from-square text-xxs"></i></a>
+                Indicatieve modelwaarde • <a href="https://www.wozwaardeloket.nl/" target="_blank" class="text-[#007b83] hover:underline inline-flex items-center gap-1 font-medium">Officieel WOZ-loket <i class="fa-solid fa-arrow-up-right-from-square text-xxs"></i></a>
               </div>
             </div>
           </div>
@@ -502,7 +495,7 @@
     const state = {
       lat: 50.805292,
       lng: 5.733510,
-      zoom: 18,
+      zoom: 18.5,
       street: 'Rijksweg',
       houseNumber: '153B',
       postalCode: '6247AD',
@@ -530,7 +523,8 @@
         nokhoogte: 9.3,
         goothoogte: 3.7,
         gebouwVolume: 744,
-        dakType: 'Schuin dak',
+        bouwlagen: 3,
+        dakType: 'Zadeldak',
         perceeloppervlakte: 411,
         perceelAanduiding: 'Gronsveld B 2882',
         wozWaarde: 435000,
@@ -861,7 +855,8 @@
               state.logistics.nokhoogte = +(a.b3_h_dak_max - a.b3_h_maaiveld).toFixed(1);
               state.logistics.goothoogte = a.b3_h_dak_min != null ? +(a.b3_h_dak_min - a.b3_h_maaiveld).toFixed(1) : null;
               state.logistics.gebouwVolume = a.b3_volume_lod22 ? Math.round(a.b3_volume_lod22) : null;
-              state.logistics.dakType = a.b3_dak_type === 'slanted' ? 'Zadeldak / Schuin' : (a.b3_dak_type === 'flat' ? 'Plat dak' : 'Samengesteld');
+              state.logistics.bouwlagen = a.b3_bouwlagen || null;
+              state.logistics.dakType = a.b3_dak_type === 'slanted' ? 'Zadeldak' : (a.b3_dak_type === 'flat' ? 'Plat dak' : 'Samengesteld');
             }
           }
         }
@@ -1007,9 +1002,12 @@
       }
       const elHoogteSub = document.getElementById('displayHoogteSub');
       if (elHoogteSub) {
+        const volumeStr = state.logistics.gebouwVolume ? `Gebouwvolume ${state.logistics.gebouwVolume} m³` : '';
+        const lagenStr = state.logistics.bouwlagen ? `${state.logistics.bouwlagen} bouwlagen` : '';
+        const details = [volumeStr, lagenStr].filter(Boolean).join(' • ');
         elHoogteSub.textContent = state.isHighway
           ? '0 m boven maaiveld'
-          : (state.logistics.gebouwVolume ? `Gebouwvolume ${state.logistics.gebouwVolume} m³ • 2 bouwlagen (3D BAG)` : (state.logistics.goothoogte ? `Goothoogte ${state.logistics.goothoogte} m • 3D BAG` : '3D BAG LiDAR'));
+          : (details ? `${details} (3D BAG AHN5)` : (state.logistics.goothoogte ? `Goothoogte ${state.logistics.goothoogte} m • 3D BAG` : '3D BAG LiDAR'));
       }
 
       // WOZ-waarde
