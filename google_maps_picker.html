@@ -356,10 +356,10 @@
             </div>
             <div class="flex-1 min-w-0">
               <div class="text-sm font-normal text-google-dark">
-                <span id="displayWoz">WOZ-waarde <strong>€ 435.000</strong></span>
+                <span id="displayWoz">WOZ-waarde <strong>€ 373.000</strong></span>
               </div>
               <div id="displayWozSub" class="text-xs text-google-gray mt-0.5">
-                Indicatieve modelwaarde • <a href="https://www.wozwaardeloket.nl/" target="_blank" class="text-[#007b83] hover:underline inline-flex items-center gap-1 font-medium">Officieel WOZ-loket <i class="fa-solid fa-arrow-up-right-from-square text-xxs"></i></a>
+                Peildatum 1 jan 2024 (2025: € 417.000) • <a href="https://www.wozwaardeloket.nl/" target="_blank" class="text-[#007b83] hover:underline inline-flex items-center gap-1 font-medium">Kadaster WOZ <i class="fa-solid fa-arrow-up-right-from-square text-xxs"></i></a>
               </div>
             </div>
           </div>
@@ -527,8 +527,11 @@
         dakType: 'Zadeldak',
         perceeloppervlakte: 411,
         perceelAanduiding: 'Gronsveld B 2882',
-        wozWaarde: 435000,
-        wozPeildatum: '1 jan 2024'
+        nummeraanduidingId: '0905200000112078',
+        wozWaarde: 373000,
+        wozPeildatum: '1 jan 2024',
+        wozExtraYear: '2025: € 417.000',
+        isRealWoz: true
       },
 
       derivedTypology: {
@@ -788,10 +791,12 @@
 
               const vboId = doc.adresseerbaarobject_id;
               state.gekoppeldPerceel = doc.gekoppeld_perceel || [];
+              state.logistics.nummeraanduidingId = doc.nummeraanduiding_id || null;
               if (vboId) {
                 await fetchBagVboAndPandDetails(vboId);
               }
               await fetchDkkParcel(lat, lng, state.gekoppeldPerceel);
+              await fetchKadasterWoz(state.logistics.nummeraanduidingId);
             }
           }
         }
@@ -895,6 +900,42 @@
       } catch (err) {
         console.warn('DKK perceel ophalen mislukt:', err);
       }
+    }
+
+    async function fetchKadasterWoz(nummeraanduidingId) {
+      if (!nummeraanduidingId) {
+        calculateIndicativeWoz();
+        return;
+      }
+      try {
+        const paddedId = String(nummeraanduidingId).padStart(16, '0');
+        const res = await fetch(`https://api.kadaster.nl/lvwoz/wozwaardeloket-api/v1/wozwaarde/nummeraanduiding/${paddedId}`);
+        if (res.ok) {
+          const data = await res.json();
+          const waarden = data.wozWaarden || [];
+          if (waarden.length > 0) {
+            const entry2024 = waarden.find(w => w.peildatum && w.peildatum.startsWith('2024'));
+            const entry2025 = waarden.find(w => w.peildatum && w.peildatum.startsWith('2025'));
+            const activeEntry = entry2024 || entry2025 || waarden[0];
+
+            state.logistics.wozWaarde = activeEntry.vastgesteldeWaarde;
+            state.logistics.wozPeildatum = `1 jan ${activeEntry.peildatum.split('-')[0]}`;
+            state.logistics.isRealWoz = true;
+            if (entry2025 && entry2024 && entry2025 !== entry2024) {
+              state.logistics.wozExtraYear = `2025: € ${entry2025.vastgesteldeWaarde.toLocaleString('nl-NL')}`;
+            } else {
+              state.logistics.wozExtraYear = null;
+            }
+
+            if (data.wozObject && data.wozObject.grondoppervlakte && !state.logistics.perceeloppervlakte) {
+              state.logistics.perceeloppervlakte = data.wozObject.grondoppervlakte;
+            }
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Kadaster WOZ ophalen mislukt, fallback:', err);
+      }
       calculateIndicativeWoz();
     }
 
@@ -908,6 +949,8 @@
       const geschat = Math.round(((opp * basisPrijs * bjFactor) + kavelOpslag) / 1000) * 1000;
       state.logistics.wozWaarde = geschat;
       state.logistics.wozPeildatum = '1 jan 2024';
+      state.logistics.wozExtraYear = null;
+      state.logistics.isRealWoz = false;
     }
 
     // --- DERIVED TYPOLOGY & UI SYNC ---
@@ -1019,9 +1062,13 @@
       }
       const elWozSub = document.getElementById('displayWozSub');
       if (elWozSub) {
-        elWozSub.innerHTML = state.isHighway
-          ? 'Geen onroerende zaak'
-          : `Peildatum ${state.logistics.wozPeildatum || '1 jan 2024'} • <a href="https://www.wozwaardeloket.nl/" target="_blank" class="text-[#007b83] hover:underline inline-flex items-center gap-1 font-medium">WOZ-loket <i class="fa-solid fa-arrow-up-right-from-square text-xxs"></i></a>`;
+        if (state.isHighway) {
+          elWozSub.innerHTML = 'Geen onroerende zaak';
+        } else {
+          const extraStr = state.logistics.wozExtraYear ? ` (${state.logistics.wozExtraYear})` : '';
+          const sourceBadge = state.logistics.isRealWoz ? 'Kadaster WOZ' : 'Indicatief model';
+          elWozSub.innerHTML = `Peildatum ${state.logistics.wozPeildatum || '1 jan 2024'}${extraStr} • <a href="https://www.wozwaardeloket.nl/" target="_blank" class="text-[#007b83] hover:underline inline-flex items-center gap-1 font-medium">${sourceBadge} <i class="fa-solid fa-arrow-up-right-from-square text-xxs"></i></a>`;
+        }
       }
 
       // Luchtfoto thumbnail
@@ -1504,8 +1551,13 @@
             }
 
             const vboId = doc.adresseerbaarobject_id;
+            state.gekoppeldPerceel = doc.gekoppeld_perceel || [];
+            state.logistics.nummeraanduidingId = doc.nummeraanduiding_id || null;
             if (vboId) {
               await fetchBagVboAndPandDetails(vboId);
+            }
+            if (state.logistics.nummeraanduidingId) {
+              await fetchKadasterWoz(state.logistics.nummeraanduidingId);
             }
           }
         }
