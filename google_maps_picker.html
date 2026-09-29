@@ -320,7 +320,7 @@
           </div>
 
           <!-- ITEM 5: PERCEELOPPERVLAKTE (KADASTER DKK) - CLICKABLE FOR TOP-DOWN VIEW -->
-          <div onclick="showParcelTopDown()" class="flex items-start px-5 py-3 hover:bg-teal-50/70 cursor-pointer transition-colors group" title="Klik om perceel en Google Satelliet bovenaanzicht te bekijken">
+          <div onclick="toggleMapSatellite()" class="flex items-start px-5 py-3 hover:bg-teal-50/70 cursor-pointer transition-colors group" title="Klik om tussen Kaart en Satelliet te schakelen">
             <div class="w-7 shrink-0 text-[#007b83] group-hover:scale-110 transition-transform mt-0.5">
               <i class="fa-solid fa-layer-group text-base"></i>
             </div>
@@ -329,7 +329,7 @@
                 <div class="text-sm font-normal text-google-dark">
                   <strong id="displayPerceel" class="font-medium text-slate-800">411</strong> m² perceel
                 </div>
-                <span class="text-xxs font-medium text-[#007b83] bg-teal-50 group-hover:bg-[#007b83] group-hover:text-white px-2 py-0.5 rounded-full border border-teal-200 group-hover:border-[#007b83] transition-colors flex items-center gap-1">
+                <span id="displayPerceelBadge" class="text-xxs font-medium text-[#007b83] bg-teal-50 group-hover:bg-[#007b83] group-hover:text-white px-2 py-0.5 rounded-full border border-teal-200 group-hover:border-[#007b83] transition-colors flex items-center gap-1">
                   <i class="fa-solid fa-satellite"></i>
                   <span>Bovenaanzicht</span>
                 </span>
@@ -393,10 +393,10 @@
                 <span>Street View</span>
               </div>
             </div>
-            <!-- Google Satellite Mini -->
-            <div class="relative rounded-lg overflow-hidden h-28 bg-slate-900 group cursor-pointer shadow-2xs" onclick="showParcelTopDown()" title="Toon Google Satelliet & Perceel">
+            <!-- Google Satellite / Map Toggle Mini -->
+            <div id="miniSatContainer" class="relative rounded-lg overflow-hidden h-28 bg-slate-900 group cursor-pointer shadow-2xs" onclick="toggleMapSatellite()" title="Toon Google Satelliet & Perceel">
               <div id="miniSatelliteMap" class="w-full h-full pointer-events-none"></div>
-              <div class="absolute bottom-1.5 left-1.5 bg-black/65 backdrop-blur-xs text-white px-2 py-0.5 rounded-full text-xxs font-medium flex items-center gap-1 shadow-md pointer-events-none z-10">
+              <div id="miniSatelliteBadge" class="absolute bottom-1.5 left-1.5 bg-black/65 backdrop-blur-xs text-white px-2 py-0.5 rounded-full text-xxs font-medium flex items-center gap-1 shadow-md pointer-events-none z-10">
                 <i class="fa-solid fa-satellite text-xxs"></i>
                 <span>Satelliet</span>
               </div>
@@ -551,8 +551,11 @@
     let googleCircle = null;
     let geocoderService = null;
     let parcelPolygon = null;
+    let parcelPolyline = null;
     let miniSatMap = null;
     let miniParcelPolygon = null;
+    let miniParcelPolyline = null;
+    let currentParcelPath = null;
 
     // Exact Kadaster DKK perceelcontour voor Rijksweg 153B (Gronsveld B 2882)
     const INITIAL_PARCEL_PATH = [
@@ -628,6 +631,8 @@
           mapTypeId: 'roadmap',
           renderingType: google.maps.RenderingType ? google.maps.RenderingType.VECTOR : 'VECTOR',
           mapId: 'DEMO_MAP_ID',
+          tilt: 0,
+          heading: 0,
           disableDefaultUI: false,
           mapTypeControl: true,
           mapTypeControlOptions: {
@@ -686,6 +691,19 @@
 
         googleMap.addListener('zoom_changed', () => {
           state.zoom = googleMap.getZoom();
+          if (googleMap.getTilt() !== 0) {
+            googleMap.setTilt(0);
+          }
+        });
+
+        googleMap.addListener('tilt_changed', () => {
+          if (googleMap.getTilt() !== 0) {
+            googleMap.setTilt(0);
+          }
+        });
+
+        googleMap.addListener('maptypeid_changed', () => {
+          syncMapToggleState();
         });
 
         // Meteen perceel omkaderen op de Google Map
@@ -708,7 +726,10 @@
 
       if (googleMarker) googleMarker.setPosition({ lat: numLat, lng: numLng });
       if (googleCircle) googleCircle.setCenter({ lat: numLat, lng: numLng });
-      if (miniSatMap) miniSatMap.setCenter({ lat: numLat, lng: numLng });
+      if (miniSatMap) {
+        miniSatMap.setCenter({ lat: numLat, lng: numLng });
+        if (miniSatMap.getTilt() !== 0) miniSatMap.setTilt(0);
+      }
 
       if (panMap && googleMap) {
         googleMap.panTo({ lat: numLat, lng: numLng });
@@ -1106,7 +1127,7 @@
       if (mode === 'satellite') {
         if (svBtn) svBtn.className = 'px-2.5 py-1 rounded-full text-white/90 hover:text-white transition-all';
         if (airBtn) airBtn.className = 'px-2.5 py-1 rounded-full bg-white text-slate-800 font-semibold shadow-xs transition-all flex items-center gap-1';
-        if (heroBadge) heroBadge.textContent = 'Google Satelliet • Perceel B 2882';
+        if (heroBadge) heroBadge.textContent = 'Google Satelliet • Perceel ' + (state.logistics.perceelAanduiding || 'B 2882');
         if (heroBadgeIcon) heroBadgeIcon.className = 'fa-solid fa-satellite text-xxs';
         showParcelTopDown();
       } else {
@@ -1115,12 +1136,17 @@
         updateStreetViewUrls();
         if (heroBadge) heroBadge.textContent = '360° Street View';
         if (heroBadgeIcon) heroBadgeIcon.className = 'fa-solid fa-arrows-rotate text-xxs';
+        if (googleMap && (googleMap.getMapTypeId() === 'hybrid' || googleMap.getMapTypeId() === 'satellite')) {
+          googleMap.setMapTypeId('roadmap');
+          googleMap.setTilt(0);
+          syncMapToggleState();
+        }
       }
     }
 
     function handleHeroClick() {
       if (currentHeroMode === 'satellite') {
-        showParcelTopDown();
+        toggleMapSatellite();
       } else {
         openFullStreetView();
       }
@@ -1129,34 +1155,67 @@
     // --- KADASTER PERCEEL OMKADERING & GOOGLE SATELLIET BOVENAANZICHT ---
     function drawParcelPolygon(path) {
       if (!googleMap || !window.google || !google.maps) return;
+      currentParcelPath = path;
+
+      // 1. Verwijder eerdere shapes indien aanwezig
       if (parcelPolygon) {
         parcelPolygon.setMap(null);
+        parcelPolygon = null;
       }
+      if (parcelPolyline) {
+        parcelPolyline.setMap(null);
+        parcelPolyline = null;
+      }
+
+      // 2. Transparante vulling via Polygon
       parcelPolygon = new google.maps.Polygon({
         paths: path,
         strokeColor: '#007b83',
-        strokeOpacity: 0.85,
-        strokeWeight: 1.0,
+        strokeOpacity: 0,
+        strokeWeight: 0,
         fillColor: '#007b83',
         fillOpacity: 0.12,
         map: googleMap,
-        zIndex: 10
+        zIndex: 999990,
+        clickable: true
+      });
+
+      // 3. Altijd-zichtbare haarscherpe rand via Polyline (verdwijnt NOOIT bij inzoomen)
+      const closedPath = [...path, path[0]];
+      parcelPolyline = new google.maps.Polyline({
+        path: closedPath,
+        strokeColor: '#007b83',
+        strokeOpacity: 0.95,
+        strokeWeight: 1.5,
+        map: googleMap,
+        zIndex: 999999,
+        clickable: false
       });
 
       parcelPolygon.addListener('click', () => {
-        showParcelTopDown();
+        toggleMapSatellite();
       });
 
-      // Werk ook de mini satelliet kaart bij met dezelfde dunne contour
+      // 4. Update ook de mini preview kaart
       if (miniSatMap) {
         if (miniParcelPolygon) miniParcelPolygon.setMap(null);
+        if (miniParcelPolyline) miniParcelPolyline.setMap(null);
+
         miniParcelPolygon = new google.maps.Polygon({
           paths: path,
           strokeColor: '#007b83',
-          strokeOpacity: 0.9,
-          strokeWeight: 1.0,
+          strokeOpacity: 0,
+          strokeWeight: 0,
           fillColor: '#007b83',
           fillOpacity: 0.15,
+          map: miniSatMap
+        });
+
+        miniParcelPolyline = new google.maps.Polyline({
+          path: closedPath,
+          strokeColor: '#007b83',
+          strokeOpacity: 0.95,
+          strokeWeight: 1.2,
           map: miniSatMap
         });
       }
@@ -1170,6 +1229,7 @@
           center: { lat: Number(state.lat), lng: Number(state.lng) },
           zoom: 19,
           mapTypeId: 'satellite',
+          tilt: 0,
           disableDefaultUI: true,
           gestureHandling: 'none',
           keyboardShortcuts: false,
@@ -1180,10 +1240,19 @@
           miniParcelPolygon = new google.maps.Polygon({
             paths: INITIAL_PARCEL_PATH,
             strokeColor: '#007b83',
-            strokeOpacity: 0.9,
-            strokeWeight: 1.0,
+            strokeOpacity: 0,
+            strokeWeight: 0,
             fillColor: '#007b83',
             fillOpacity: 0.15,
+            map: miniSatMap
+          });
+
+          const closedInit = [...INITIAL_PARCEL_PATH, INITIAL_PARCEL_PATH[0]];
+          miniParcelPolyline = new google.maps.Polyline({
+            path: closedInit,
+            strokeColor: '#007b83',
+            strokeOpacity: 0.95,
+            strokeWeight: 1.2,
             map: miniSatMap
           });
         }
@@ -1214,22 +1283,88 @@
 
     function showParcelTopDown() {
       if (!googleMap) return;
-      // Schakel direct over naar Google Hybride/Satelliet met haarscherp beeld
       googleMap.setMapTypeId('hybrid');
+      googleMap.setTilt(0);
 
-      if (parcelPolygon && parcelPolygon.getPath && parcelPolygon.getPath().getLength() > 0) {
+      const path = currentParcelPath || INITIAL_PARCEL_PATH;
+      if (path && path.length > 0) {
         const bounds = new google.maps.LatLngBounds();
-        parcelPolygon.getPath().forEach(latLng => bounds.extend(latLng));
-        // Fit bounds met padding rekening houdend met de linker Google Maps kaart overlay
-        googleMap.fitBounds(bounds, { top: 80, right: 80, bottom: 80, left: 440 });
+        path.forEach(pt => bounds.extend(new google.maps.LatLng(pt.lat, pt.lng)));
+        googleMap.fitBounds(bounds, { top: 70, right: 70, bottom: 70, left: 440 });
         setTimeout(() => {
-          const z = googleMap.getZoom();
-          if (z > 20) googleMap.setZoom(20);
-          if (z < 18) googleMap.setZoom(19);
-        }, 250);
+          if (googleMap.getZoom() > 19) googleMap.setZoom(19);
+          googleMap.setTilt(0);
+        }, 150);
       } else {
         googleMap.panTo({ lat: Number(state.lat), lng: Number(state.lng) });
         googleMap.setZoom(19);
+        googleMap.setTilt(0);
+      }
+      syncMapToggleState();
+    }
+
+    function toggleMapSatellite() {
+      if (!googleMap) return;
+      const currentType = googleMap.getMapTypeId();
+      if (currentType === 'hybrid' || currentType === 'satellite') {
+        // Terug naar normale kaart
+        googleMap.setMapTypeId('roadmap');
+        googleMap.setTilt(0);
+        setHeroMode('streetview');
+      } else {
+        // Naar satelliet bovenaanzicht
+        showParcelTopDown();
+        setHeroMode('satellite');
+      }
+      syncMapToggleState();
+    }
+
+    function syncMapToggleState() {
+      if (!googleMap) return;
+      const currentType = googleMap.getMapTypeId();
+      const isSatellite = (currentType === 'hybrid' || currentType === 'satellite');
+      
+      const badgeEl = document.getElementById('miniSatelliteBadge');
+      const containerEl = document.getElementById('miniSatContainer');
+      const heroBtnAir = document.getElementById('heroModeAirBtn');
+      const perceelBadge = document.getElementById('displayPerceelBadge');
+
+      if (isSatellite) {
+        // Hoofdkaart staat op Satelliet -> Thumbnail toont nu de normale KAART
+        if (miniSatMap) {
+          miniSatMap.setMapTypeId('roadmap');
+          miniSatMap.setTilt(0);
+        }
+        if (badgeEl) {
+          badgeEl.innerHTML = `<i class="fa-solid fa-map text-xxs"></i> <span>Kaart</span>`;
+        }
+        if (containerEl) {
+          containerEl.setAttribute('title', 'Klik om terug te gaan naar de normale kaart');
+        }
+        if (heroBtnAir) {
+          heroBtnAir.innerHTML = `<i class="fa-solid fa-map text-xxs"></i> <span>Kaart</span>`;
+        }
+        if (perceelBadge) {
+          perceelBadge.innerHTML = `<i class="fa-solid fa-map text-xxs"></i> <span>Naar Kaart</span>`;
+        }
+      } else {
+        // Hoofdkaart staat op normale Kaart -> Thumbnail toont SATELLIET
+        if (miniSatMap) {
+          miniSatMap.setMapTypeId('satellite');
+          miniSatMap.setTilt(0);
+        }
+        if (badgeEl) {
+          badgeEl.innerHTML = `<i class="fa-solid fa-satellite text-xxs"></i> <span>Satelliet</span>`;
+        }
+        if (containerEl) {
+          containerEl.setAttribute('title', 'Klik om Google Satelliet & Perceel te tonen');
+        }
+        if (heroBtnAir) {
+          heroBtnAir.innerHTML = `<i class="fa-solid fa-satellite text-xxs"></i> <span>Satelliet</span>`;
+        }
+        if (perceelBadge) {
+          perceelBadge.innerHTML = `<i class="fa-solid fa-satellite text-xxs"></i> <span>Bovenaanzicht</span>`;
+        }
       }
     }
 
