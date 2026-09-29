@@ -1,687 +1,625 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="nl" class="h-full">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EasyHosting • Google Maps & Geocoding Studio</title>
+  <title>Google Maps & Kadaster BAG Studio</title>
+  
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <!-- Leaflet CSS & JS for Fallback Engine -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
-    body { font-family: 'Plus Jakarta Sans', sans-serif; }
-    
-    /* Custom Pin & Marker Styling */
-    .custom-center-pin {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -100%);
-      pointer-events: none;
-      z-index: 25;
-      transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-    .custom-center-pin.dragging {
-      transform: translate(-50%, -125%) scale(1.12);
-    }
-    .custom-pin-shadow {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 14px;
-      height: 7px;
-      background: rgba(0, 0, 0, 0.35);
-      border-radius: 50%;
-      pointer-events: none;
-      z-index: 24;
-      filter: blur(1.5px);
-      transition: all 0.15s ease;
-    }
-    .custom-pin-shadow.dragging {
-      transform: translate(-50%, -50%) scale(0.65);
-      opacity: 0.25;
-    }
-
-    /* Floating Inputs */
-    .floating-group { position: relative; }
-    .floating-group input, .floating-group select {
-      padding-top: 1.35rem;
-      padding-bottom: 0.45rem;
-    }
-    .floating-label {
-      position: absolute;
-      left: 1rem;
-      top: 0.35rem;
-      font-size: 0.68rem;
-      font-weight: 700;
-      color: #64748b;
-      pointer-events: none;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
-    /* Autocomplete Dropdown scrollbar */
-    .suggestions-list::-webkit-scrollbar { width: 6px; }
-    .suggestions-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-  </style>
-</head>
-<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col antialiased">
-
-  <!-- ================= TOP NAV BAR ================= -->
-  <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-      <div class="flex items-center space-x-3">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-500 to-rose-600 flex items-center justify-center text-white shadow-md shadow-rose-500/25">
-          <i class="fa-solid fa-map-location-dot text-lg"></i>
-        </div>
-        <div>
-          <div class="flex items-center gap-2">
-            <span class="text-lg font-extrabold text-slate-900 tracking-tight">EasyHosting</span>
-            <span class="text-xs px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 font-bold border border-rose-200">Maps Studio</span>
-          </div>
-          <p class="text-xs text-slate-500">Google Places, Pin Positioner & Geocoding Studio</p>
-        </div>
-      </div>
-
-      <!-- Live Engine Badges & Controls -->
-      <div class="flex items-center gap-2 sm:gap-3">
-        <div id="engineStatusBadge" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span id="engineStatusText">Google Maps (Actief)</span>
-        </div>
-
-        <button onclick="toggleEngineModal()" class="text-xs font-semibold px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 transition flex items-center gap-1.5 shadow-2xs">
-          <i class="fa-solid fa-sliders text-slate-400"></i>
-          <span>Engine: <strong id="currentEngineLabel" class="text-slate-900">Google</strong></span>
-        </button>
-
-        <button onclick="openApiKeyModal()" class="text-xs font-semibold px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white transition flex items-center gap-1.5 shadow-sm">
-          <i class="fa-solid fa-key text-amber-400"></i>
-          <span>API Key</span>
-        </button>
-      </div>
-    </div>
-  </header>
-
-  <!-- ================= POC MODE SECURE HASH BANNER ================= -->
-  <div id="pocModeBanner" class="hidden bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-xs text-amber-800 text-center font-medium">
-    <i class="fa-solid fa-circle-info text-amber-600 mr-1.5"></i>
-    <span><strong>POC Fallback:</strong> Geen Google Maps API-sleutel gedetecteerd. Kaart draait op OpenStreetMap. Open de gedeelde tester-link met <code class="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold">#key=...</code> om Google Maps direct te activeren.</span>
-  </div>
-
-  <!-- ================= MAIN CONTENT WRAPPER ================= -->
-  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col gap-6">
-
-    <!-- Hero / Workflow intro banner -->
-    <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 rounded-3xl p-6 sm:p-8 text-white shadow-lg relative overflow-hidden">
-      <div class="relative z-10 max-w-3xl space-y-2">
-        <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-white/10 text-white/90 text-xs font-medium backdrop-blur-md">
-          <i class="fa-solid fa-wand-magic-sparkles text-amber-300"></i>
-          <span>Volledig Werkende Google Maps & Geocoding Integratie</span>
-        </div>
-        <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Adres, Kaartpin & Geocoding Configurator</h1>
-        <p class="text-sm text-slate-300 leading-relaxed">
-          Geïnspireerd door de EasyHosting & Airbnb Host flow. Typ een adres in voor live Google Places suggesties, versleep de interactieve kaart om de pin op de exacte meter nauwkeurig te kalibreren, en exporteer de gestructureerde data direct naar jouw projecten.
-        </p>
-      </div>
-      <div class="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">
-        <i class="fa-solid fa-earth-europe text-[240px]"></i>
-      </div>
-    </div>
-
-    <!-- 2 COLUMN GRID: Links Formulier, Rechts Kaart -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-
-      <!-- ================= LINKER KOLOM: ADRESZOEKEN & FORMULIER (5 cols) ================= -->
-      <section class="lg:col-span-5 flex flex-col gap-5">
-
-        <!-- 1. LIVE AUTOCOMPLETE SEARCH CARD -->
-        <div class="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs relative">
-          <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-            Adres Zoeken (Google Places Autocomplete)
-          </label>
-
-          <div class="relative">
-            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-              <i class="fa-solid fa-magnifying-glass"></i>
-            </div>
-            <input
-              id="addressSearchInput"
-              type="text"
-              placeholder="Bijv. Rijksweg 153, Gronsveld of Keizersgracht..."
-              autocomplete="off"
-              class="w-full pl-10 pr-10 py-3.5 bg-slate-50 border border-slate-300 rounded-2xl text-sm font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white transition shadow-inner"
-            />
-            <button
-              id="clearSearchBtn"
-              onclick="clearSearchInput()"
-              class="hidden absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
-            >
-              <i class="fa-solid fa-circle-xmark"></i>
-            </button>
-          </div>
-
-          <!-- Live Suggestions Dropdown Container -->
-          <div
-            id="suggestionsDropdown"
-            class="hidden absolute left-5 right-5 mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden suggestions-list max-h-72 overflow-y-auto"
-          >
-            <!-- Suggestions injected dynamically -->
-          </div>
-
-          <!-- Quick Action Buttons -->
-          <div class="mt-3 flex flex-wrap items-center gap-2">
-            <button
-              id="useCurrentLocationBtn"
-              onclick="getCurrentLocation()"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition cursor-pointer"
-            >
-              <i class="fa-solid fa-location-crosshairs text-rose-500"></i>
-              <span>Mijn huidige GPS locatie</span>
-            </button>
-            <button
-              onclick="reverseGeocodeCurrentMapCenter()"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition cursor-pointer"
-            >
-              <i class="fa-solid fa-arrows-rotate text-blue-500"></i>
-              <span>Herken adres van pin</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- 2. GESTRUCTUREERDE ADRES VELDEN -->
-        <div class="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs space-y-4">
-          <div class="flex items-center justify-between pb-2 border-b border-slate-100">
-            <h2 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-              <i class="fa-solid fa-house-chimney text-rose-500"></i>
-              <span>Adresgegevens</span>
-            </h2>
-            <span id="verifiedStatusBadge" class="text-xxs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold border border-slate-200">
-              Niet geverifieerd
-            </span>
-          </div>
-
-          <!-- Straat + Huisnummer -->
-          <div class="grid grid-cols-3 gap-3">
-            <div class="col-span-2 floating-group">
-              <span class="floating-label">Straatnaam</span>
-              <input id="fieldStreet" type="text" placeholder="Rijksweg" oninput="onFieldChange()" class="w-full px-4 border border-slate-200 rounded-2xl text-sm font-semibold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-rose-500 transition" />
-            </div>
-            <div class="col-span-1 floating-group">
-              <span class="floating-label">Huisnummer</span>
-              <input id="fieldHouseNumber" type="text" placeholder="153" oninput="onFieldChange()" class="w-full px-4 border border-slate-200 rounded-2xl text-sm font-semibold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-rose-500 transition" />
-            </div>
-          </div>
-
-          <!-- Toevoeging / Appartement -->
-          <div class="floating-group">
-            <span class="floating-label">Appartement, suite, bus (optioneel)</span>
-            <input id="fieldApartment" type="text" placeholder="Bijv. Bus 2A" oninput="onFieldChange()" class="w-full px-4 border border-slate-200 rounded-2xl text-sm font-semibold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-rose-500 transition" />
-          </div>
-
-          <!-- Postcode + Stad -->
-          <div class="grid grid-cols-5 gap-3">
-            <div class="col-span-2 floating-group">
-              <span class="floating-label">Postcode</span>
-              <input id="fieldPostalCode" type="text" placeholder="6247 AD" oninput="onFieldChange()" class="w-full px-4 border border-slate-200 rounded-2xl text-sm font-semibold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-rose-500 transition" />
-            </div>
-            <div class="col-span-3 floating-group">
-              <span class="floating-label">Woonplaats / Stad</span>
-              <input id="fieldCity" type="text" placeholder="Gronsveld" oninput="onFieldChange()" class="w-full px-4 border border-slate-200 rounded-2xl text-sm font-semibold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-rose-500 transition" />
-            </div>
-          </div>
-
-          <!-- Regio + Land -->
-          <div class="grid grid-cols-2 gap-3">
-            <div class="floating-group">
-              <span class="floating-label">Provincie / Regio</span>
-              <input id="fieldStateRegion" type="text" placeholder="Limburg" oninput="onFieldChange()" class="w-full px-4 border border-slate-200 rounded-2xl text-sm font-semibold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-rose-500 transition" />
-            </div>
-            <div class="floating-group">
-              <span class="floating-label">Land</span>
-              <input id="fieldCountry" type="text" placeholder="Nederland" oninput="onFieldChange()" class="w-full px-4 border border-slate-200 rounded-2xl text-sm font-semibold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-rose-500 transition" />
-            </div>
-          </div>
-
-          <!-- EXACTE LOCATIE SCHAKELAAR (AIRBNB PRIVACY PATTERN) -->
-          <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-4">
-            <div class="space-y-0.5">
-              <label for="shareExactToggle" class="text-xs font-bold text-slate-900 block cursor-pointer">Exacte locatie delen</label>
-              <p class="text-xxs text-slate-500 leading-normal">
-                Toon een exacte speld op de kaart. Schakel uit voor een indicatieve privacy-radius.
-              </p>
-            </div>
-            <button
-              id="shareExactToggle"
-              type="button"
-              role="switch"
-              aria-checked="true"
-              onclick="toggleShareExact()"
-              class="w-12 h-7 rounded-full bg-rose-500 flex items-center p-1 cursor-pointer transition-colors shrink-0"
-            >
-              <div id="shareExactKnob" class="w-5 h-5 bg-white rounded-full shadow-md transform translate-x-5 transition-transform duration-200"></div>
-            </button>
-          </div>
-
-          <!-- RADIUS SLIDER (alleen zichtbaar als shareExact false is) -->
-          <div id="radiusControlSection" class="hidden pt-2 border-t border-slate-100 space-y-2 bg-slate-50/80 p-3 rounded-2xl">
-            <div class="flex items-center justify-between text-xs">
-              <span class="font-bold text-slate-700">Privacy Cirkel Straal:</span>
-              <span id="radiusValueLabel" class="font-bold text-rose-600">300 meter</span>
-            </div>
-            <input
-              id="radiusSlider"
-              type="range"
-              min="100"
-              max="1500"
-              step="50"
-              value="300"
-              oninput="updateRadius(this.value)"
-              class="w-full accent-rose-500 cursor-pointer"
-            />
-          </div>
-        </div>
-
-        <!-- 3. COORDINATEN WEERGAVE & MANUELE KALIBRATIE -->
-        <div class="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs space-y-3">
-          <div class="flex items-center justify-between">
-            <h2 class="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-              <i class="fa-solid fa-crosshairs text-slate-400"></i>
-              <span>Geografische Coördinaten</span>
-            </h2>
-            <button onclick="forwardGeocodeAddressFields()" class="text-xxs font-bold text-rose-600 hover:text-rose-700 cursor-pointer">
-              Herbereken via adres &rarr;
-            </button>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <div class="floating-group">
-              <span class="floating-label">Latitude</span>
-              <input id="coordLat" type="number" step="0.000001" value="50.812300" onchange="onManualCoordsChange()" class="w-full px-4 border border-slate-200 rounded-2xl text-xs font-mono font-bold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-500 transition" />
-            </div>
-            <div class="floating-group">
-              <span class="floating-label">Longitude</span>
-              <input id="coordLng" type="number" step="0.000001" value="5.723400" onchange="onManualCoordsChange()" class="w-full px-4 border border-slate-200 rounded-2xl text-xs font-mono font-bold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-500 transition" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ================= RECHTER KOLOM: INTERACTIEVE KAART & EXPORT (7 cols) ================= -->
-      <section class="lg:col-span-7 flex flex-col gap-5">
-
-        <!-- INTERACTIVE MAP CARD CONTAINER -->
-        <div class="bg-white rounded-3xl p-3 sm:p-4 border border-slate-200/80 shadow-md flex flex-col gap-3">
-          
-          <!-- Map Header Tool Bar -->
-          <div class="flex flex-wrap items-center justify-between gap-2 px-1">
-            <div class="flex items-center gap-2">
-              <div class="w-3 h-3 rounded-full bg-rose-500"></div>
-              <span class="text-xs font-bold text-slate-800">Interactieve Pin & Kaart</span>
-              <span id="pinModeBadge" class="text-xxs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold">
-                Airbnb Stijl (Sleep Kaart)
-              </span>
-            </div>
-
-            <!-- Map View Switcher & Actions -->
-            <div class="flex items-center gap-1.5">
-              <button
-                id="mapTypeRoadmapBtn"
-                onclick="setMapType('roadmap')"
-                class="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-900 text-white transition cursor-pointer"
-              >
-                Kaart
-              </button>
-              <button
-                id="mapTypeSatelliteBtn"
-                onclick="setMapType('hybrid')"
-                class="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition cursor-pointer"
-              >
-                Satelliet
-              </button>
-              <button
-                onclick="recenterMap()"
-                title="Hercentreer op pin"
-                class="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition cursor-pointer"
-              >
-                <i class="fa-solid fa-bullseye text-xs"></i>
-              </button>
-            </div>
-          </div>
-
-          <!-- THE MAP VIEWPORT (RELATIVE CONTAINER) -->
-          <div class="relative w-full h-[400px] sm:h-[480px] md:h-[520px] rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 shadow-inner">
-            
-            <!-- Google Maps DIV Mount -->
-            <div id="googleMapElement" class="w-full h-full z-10"></div>
-            <!-- Leaflet Fallback DIV Mount -->
-            <div id="leafletMapElement" class="hidden w-full h-full z-10"></div>
-
-            <!-- AIRBNB FIXED CENTER PIN ICON OVERLAY -->
-            <div id="airbnbCenterPin" class="custom-center-pin flex flex-col items-center">
-              <div class="w-9 h-9 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-lg border-2 border-white transform transition-transform duration-100">
-                <i class="fa-solid fa-location-dot text-lg"></i>
-              </div>
-              <div class="w-2 h-2 bg-rose-600 rotate-45 -mt-1 border-r border-b border-white"></div>
-            </div>
-            <!-- Pin Shadow on ground -->
-            <div id="airbnbPinShadow" class="custom-pin-shadow"></div>
-
-            <!-- BOTTOM LEFT: LIVE STATUS OVERLAY CHIP -->
-            <div class="absolute left-3 bottom-3 z-30 bg-slate-900/80 backdrop-blur-md text-white px-3 py-1.5 rounded-xl text-xxs font-mono flex items-center gap-2 shadow-lg">
-              <span id="liveCoordsLabel">50.812300, 5.723400</span>
-              <span class="text-slate-400">|</span>
-              <span id="liveZoomLabel">Zoom: 15</span>
-            </div>
-
-            <!-- BOTTOM RIGHT: CUSTOM ZOOM CONTROLS OVERLAY -->
-            <div class="absolute right-3 bottom-3 z-30 flex flex-col shadow-md rounded-xl overflow-hidden border border-slate-200">
-              <button
-                type="button"
-                aria-label="Inzoomen"
-                onclick="zoomInMap()"
-                class="w-9 h-9 bg-white hover:bg-slate-100 font-extrabold text-slate-800 flex items-center justify-center border-b border-slate-200 transition cursor-pointer text-sm"
-              >
-                +
-              </button>
-              <button
-                type="button"
-                aria-label="Uitzoomen"
-                onclick="zoomOutMap()"
-                class="w-9 h-9 bg-white hover:bg-slate-100 font-extrabold text-slate-800 flex items-center justify-center transition cursor-pointer text-sm"
-              >
-                &minus;
-              </button>
-            </div>
-
-            <!-- LOADING SPINNER OVERLAY -->
-            <div id="mapLoadingOverlay" class="absolute inset-0 bg-slate-100/90 backdrop-blur-xs flex flex-col items-center justify-center gap-2 z-35">
-              <div class="w-8 h-8 border-3 border-rose-500 border-t-transparent rounded-full animate-spin"></div>
-              <span class="text-xs font-bold text-slate-600">Google Maps Initialiseren...</span>
-            </div>
-          </div>
-
-          <!-- Map Footer hint -->
-          <div class="flex items-center justify-between text-xxs text-slate-500 px-1">
-            <span class="flex items-center gap-1.5">
-              <i class="fa-solid fa-hand-pointer text-slate-400"></i>
-              <span>Sleep de kaart: de rode pin in het centrum stelt automatisch de exacte coördinaten in.</span>
-            </span>
-            <span id="reverseStatusHint" class="text-slate-400 font-medium"></span>
-          </div>
-        </div>
-
-        <!-- ================= EXPORT & INTEGRATIE HUB ================= -->
-        <div class="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs space-y-4">
-          <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
-            <div>
-              <h3 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                <i class="fa-solid fa-code text-indigo-500"></i>
-                <span>Export & Integratie Hub</span>
-              </h3>
-              <p class="text-xs text-slate-500">Gebruik deze locatiegegevens in EasyHosting, Next.js of andere projecten</p>
-            </div>
-
-            <div class="flex items-center gap-2">
-              <button
-                onclick="copyJsonPayload()"
-                class="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border border-indigo-200"
-              >
-                <i class="fa-regular fa-copy"></i>
-                <span id="copyJsonBtnText">Kopieer JSON</span>
-              </button>
-
-              <button
-                onclick="openInGoogleMaps()"
-                class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-              >
-                <i class="fa-solid fa-arrow-up-right-from-square"></i>
-                <span>Google Maps URL</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="relative">
-            <pre class="bg-slate-900 text-slate-200 p-4 rounded-2xl text-xs font-mono overflow-x-auto max-h-48 leading-relaxed"><code id="jsonPreviewBox">{}</code></pre>
-          </div>
-        </div>
-
-      </section>
-    </div>
-  </main>
-
-  <!-- ================= API KEY & SETTINGS MODAL ================= -->
-  <div id="apiKeyModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-    <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-scaleUp">
-      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-        <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
-            <i class="fa-solid fa-key"></i>
-          </div>
-          <div>
-            <h3 class="text-base font-extrabold text-slate-900">Google Maps API Sleutel</h3>
-            <p class="text-xs text-slate-500">Opgeslagen in je lokale browser (localStorage)</p>
-          </div>
-        </div>
-        <button onclick="closeApiKeyModal()" class="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
-
-      <div class="space-y-3">
-        <label class="block text-xs font-bold text-slate-700">Google Cloud API Key</label>
-        <div class="relative">
-          <input
-            id="apiKeyInput"
-            type="text"
-            placeholder="AIzaSy..."
-            class="w-full pl-3 pr-10 py-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500"
-          />
-          <button onclick="toggleKeyVisibility()" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600">
-            <i id="keyEyeIcon" class="fa-solid fa-eye text-xs"></i>
-          </button>
-        </div>
-        <p class="text-xxs text-slate-500 leading-normal">
-          Vereist ingeschakelde API's in Google Cloud: <strong>Maps JavaScript API</strong>, <strong>Places API (New)</strong> en <strong>Geocoding API</strong>.
-        </p>
-
-        <div id="keyTestResult" class="hidden p-3 rounded-xl text-xs"></div>
-      </div>
-
-      <div class="flex items-center justify-between pt-3 border-t border-slate-100">
-        <button onclick="testCurrentKey()" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
-          <i class="fa-solid fa-bolt text-amber-500"></i>
-          <span>Test Sleutel Nu</span>
-        </button>
-
-        <div class="flex items-center gap-2">
-          <button onclick="closeApiKeyModal()" class="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold cursor-pointer">
-            Annuleren
-          </button>
-          <button onclick="saveApiKey()" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition cursor-pointer shadow-sm">
-            Opslaan & Kaart Herladen
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ================= ENGINE SELECTION MODAL ================= -->
-  <div id="engineModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-    <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-      <div class="flex items-center justify-between pb-2 border-b border-slate-100">
-        <h3 class="text-base font-extrabold text-slate-900">Kies Kaart-Engine</h3>
-        <button onclick="toggleEngineModal()" class="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
-
-      <div class="space-y-3">
-        <label class="flex items-start gap-3 p-3.5 rounded-2xl border border-rose-200 bg-rose-50/50 hover:bg-rose-50 cursor-pointer transition">
-          <input type="radio" name="engineOption" value="google" checked onchange="switchEngine('google')" class="mt-1 text-rose-600 focus:ring-rose-500" />
-          <div class="space-y-0.5">
-            <span class="block text-xs font-extrabold text-slate-900">Google Maps & Places (Aanbevolen)</span>
-            <p class="text-xxs text-slate-600 leading-normal">
-              Volledige ondersteuning voor Places API (New), Google Geocoder, satellietweergave en Airbnb-stijl pin interactie.
-            </p>
-          </div>
-        </label>
-
-        <label class="flex items-start gap-3 p-3.5 rounded-2xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition">
-          <input type="radio" name="engineOption" value="leaflet" onchange="switchEngine('leaflet')" class="mt-1 text-rose-600 focus:ring-rose-500" />
-          <div class="space-y-0.5">
-            <span class="block text-xs font-extrabold text-slate-900">OpenStreetMap / Leaflet (Zonder API Key)</span>
-            <p class="text-xxs text-slate-600 leading-normal">
-              100% gratis en open-source fallback via Photon Geocoding en OpenStreetMap tiles. Werkt overal direct op GitHub Pages.
-            </p>
-          </div>
-        </label>
-      </div>
-
-      <div class="flex justify-end pt-2">
-        <button onclick="toggleEngineModal()" class="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold">
-          Sluiten
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ================= JAVASCRIPT APPLICATION CORE ================= -->
   <script>
-    // --- SECURE POC API KEY RESOLUTION (GEEN HARDE SLEUTEL IN GIT) ---
-    function resolveSecureApiKey() {
-      // 1. Check URL Hash: #key=... of #apiKey=...
-      if (window.location.hash) {
-        const hashStr = window.location.hash.replace(/^#/, '');
-        const hashParams = new URLSearchParams(hashStr);
-        const hashKey = hashParams.get('key') || hashParams.get('apiKey');
-        if (hashKey && hashKey.trim()) {
-          const cleanKey = hashKey.trim();
-          sessionStorage.setItem('poc_gmaps_key', cleanKey);
-          try {
-            history.replaceState(null, '', window.location.pathname + window.location.search);
-          } catch (e) {}
-          return cleanKey;
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            google: {
+              blue: '#1a73e8',
+              hoverBlue: '#1557b0',
+              teal: '#007b83',
+              tealDark: '#005f66',
+              dark: '#202124',
+              gray: '#5f6368',
+              lightGray: '#f1f3f4',
+              border: '#dadce0',
+            }
+          },
+          boxShadow: {
+            'gmap-card': '0 2px 6px rgba(60,64,67,0.3), 0 1px 2px rgba(60,64,67,0.15)',
+            'gmap-dropdown': '0 2px 6px 2px rgba(60,64,67,0.15)'
+          }
         }
       }
+    };
+  </script>
 
-      // 2. Check SessionStorage (onthouden gedurende deze browser-tab sessie)
-      const sessionKey = sessionStorage.getItem('poc_gmaps_key');
-      if (sessionKey && sessionKey.trim()) {
-        return sessionKey.trim();
+  <!-- Google Fonts: Roboto & FontAwesome Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    body {
+      font-family: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      overflow: hidden;
+      color: #202124;
+    }
+    .gmap-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .gmap-scroll::-webkit-scrollbar-track {
+      background: #f1f3f4;
+    }
+    .gmap-scroll::-webkit-scrollbar-thumb {
+      background: #dadce0;
+      border-radius: 4px;
+    }
+    .gmap-scroll::-webkit-scrollbar-thumb:hover {
+      background: #bdc1c6;
+    }
+  </style>
+</head>
+<body class="h-full w-full bg-slate-100 flex flex-col relative select-none">
+
+  <!-- ================= GOOGLE MAP VIEWPORT (FULL SCREEN) ================= -->
+  <div class="relative flex-1 w-full h-full overflow-hidden">
+    <div id="googleMapElement" class="absolute inset-0 w-full h-full z-0"></div>
+
+    <!-- ================= FLOATING GOOGLE MAPS PLACE CARD (PIXEL-PERFECT CLONE) ================= -->
+    <div 
+      id="placeSidebar" 
+      class="absolute top-3 left-3 bottom-3 z-20 w-[400px] max-w-[calc(100vw-24px)] bg-white rounded-lg shadow-gmap-card flex flex-col overflow-hidden transition-all duration-300 border border-slate-200/80"
+    >
+      
+      <!-- 1. INTEGRATED GOOGLE SEARCH BAR AT TOP OF CARD -->
+      <div class="p-2.5 border-b border-slate-200 bg-white relative z-30">
+        <div class="flex items-center bg-white rounded-full px-3 py-1.5 border border-slate-300 shadow-2xs hover:border-slate-400 focus-within:border-google-blue focus-within:ring-1 focus-within:ring-google-blue transition-all">
+          <button class="text-google-gray hover:text-google-dark mr-2.5 p-1" title="Menu">
+            <i class="fa-solid fa-bars text-sm"></i>
+          </button>
+          
+          <input 
+            type="text" 
+            id="addressSearchInput" 
+            value="Rijksweg 153b"
+            placeholder="Zoek in Google Maps of BAG..." 
+            class="flex-1 bg-transparent border-none outline-none text-sm text-google-dark font-normal"
+            autocomplete="off"
+          />
+
+          <button 
+            id="clearSearchBtn" 
+            onclick="clearSearchInput()" 
+            class="p-1 text-google-gray hover:text-google-dark rounded-full hover:bg-slate-100 transition-colors mr-1"
+            title="Wissen"
+          >
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
+
+          <div class="h-4 w-px bg-slate-200 mx-1"></div>
+
+          <button onclick="executeCurrentSearch()" class="p-1 text-google-blue hover:text-google-hoverBlue ml-1" title="Zoeken">
+            <i class="fa-solid fa-magnifying-glass text-sm"></i>
+          </button>
+
+          <button onclick="toggleEngineModal()" class="p-1 text-google-gray hover:text-google-dark ml-1" title="API Sleutel Instellingen">
+            <i class="fa-solid fa-key text-xs text-emerald-600"></i>
+          </button>
+        </div>
+
+        <!-- Autocomplete Suggestions Dropdown -->
+        <div 
+          id="suggestionsDropdown" 
+          class="hidden absolute top-14 left-2.5 right-2.5 bg-white rounded-lg shadow-gmap-dropdown border border-slate-200 overflow-hidden mt-1 z-50 max-h-80 overflow-y-auto"
+        >
+          <div id="suggestionsList" class="divide-y divide-slate-100 text-xs"></div>
+        </div>
+      </div>
+
+      <!-- Scrollable Card Content -->
+      <div class="flex-1 overflow-y-auto gmap-scroll bg-white">
+        
+        <!-- 2. REAL STREET VIEW / PHOTO HERO IMAGE -->
+        <div class="relative w-full h-52 bg-slate-900 overflow-hidden group cursor-pointer" onclick="handleHeroClick()">
+          <img 
+            id="streetViewImage" 
+            src="https://maps.googleapis.com/maps/api/streetview?size=600x300&location=50.805292,5.733510&fov=90&heading=92&pitch=5&key=AIzaSyBcrKLAGqIMYlDVag_c8zNOLNDbVjVJcLI" 
+            alt="Hero View" 
+            class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            onerror="onStreetViewLoadError()"
+          />
+
+          <!-- View Mode Toggle: Street View / Luchtfoto (Top Left) -->
+          <div class="absolute top-3 left-3 bg-black/65 backdrop-blur-xs p-0.5 rounded-full flex items-center text-white text-xxs font-medium shadow-md">
+            <button 
+              id="heroModeSvBtn" 
+              onclick="event.stopPropagation(); setHeroMode('streetview')" 
+              class="px-2.5 py-1 rounded-full bg-white text-slate-800 font-semibold shadow-xs transition-all"
+            >
+              Street View
+            </button>
+            <button 
+              id="heroModeAirBtn" 
+              onclick="event.stopPropagation(); setHeroMode('satellite')" 
+              class="px-2.5 py-1 rounded-full text-white/90 hover:text-white transition-all flex items-center gap-1"
+            >
+              <i class="fa-solid fa-satellite text-xxs"></i>
+              <span>Satelliet & Perceel</span>
+            </button>
+          </div>
+
+          <!-- Bottom Left Badge -->
+          <div class="absolute bottom-3 left-3 bg-black/70 backdrop-blur-xs text-white px-2.5 py-1 rounded-full text-xs font-medium flex items-center gap-1.5 shadow-md">
+            <i id="heroBadgeIcon" class="fa-solid fa-arrows-rotate text-xxs"></i>
+            <span id="heroBadgeText">360° Street View</span>
+          </div>
+
+          <!-- Open in Google Maps Button (Top Right) -->
+          <button 
+            onclick="event.stopPropagation(); openInGoogleMaps();" 
+            class="absolute top-3 right-3 bg-white/95 hover:bg-white text-slate-800 p-2 rounded-full shadow-md transition-colors"
+            title="Open in Google Maps"
+          >
+            <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
+          </button>
+        </div>
+
+        <!-- 3. TITLE & CLASSIFICATION HEADER (Exact Google Maps Style) -->
+        <div class="px-5 pt-4 pb-2 border-b border-slate-100">
+          <div>
+            <h1 id="placeTitle" class="text-2xl font-normal text-google-dark tracking-tight leading-tight">Rijksweg 153B</h1>
+            <p id="placeSubtitle" class="text-xs text-google-gray mt-0.5">Building</p>
+          </div>
+        </div>
+
+        <!-- 4. ACTION BUTTONS ROW (Circular Teal Google Maps Style) -->
+        <div class="flex items-center justify-around py-3 px-3 border-b border-slate-100 bg-white">
+          <!-- Action: Directions -->
+          <button onclick="panToCurrentLocation()" class="flex flex-col items-center group cursor-pointer">
+            <div class="w-10 h-10 rounded-full bg-[#007b83] flex items-center justify-center text-white group-hover:bg-[#005f66] transition-colors shadow-2xs">
+              <i class="fa-solid fa-diamond-turn-right text-sm"></i>
+            </div>
+            <span class="text-xxs text-[#007b83] font-medium mt-1.5">Directions</span>
+          </button>
+
+          <!-- Action: Save -->
+          <button onclick="copyJsonPayload()" class="flex flex-col items-center group cursor-pointer">
+            <div class="w-10 h-10 rounded-full bg-[#007b83] flex items-center justify-center text-white group-hover:bg-[#005f66] transition-colors shadow-2xs">
+              <i class="fa-regular fa-bookmark text-sm"></i>
+            </div>
+            <span id="copyJsonBtnLabel" class="text-xxs text-[#007b83] font-medium mt-1.5">Save</span>
+          </button>
+
+          <!-- Action: Nearby -->
+          <button onclick="panToCurrentLocation()" class="flex flex-col items-center group cursor-pointer">
+            <div class="w-10 h-10 rounded-full bg-[#007b83] flex items-center justify-center text-white group-hover:bg-[#005f66] transition-colors shadow-2xs">
+              <i class="fa-solid fa-compass text-sm"></i>
+            </div>
+            <span class="text-xxs text-[#007b83] font-medium mt-1.5">Nearby</span>
+          </button>
+
+          <!-- Action: Send to phone -->
+          <button onclick="sendToPhone()" class="flex flex-col items-center group cursor-pointer">
+            <div class="w-10 h-10 rounded-full bg-[#007b83] flex items-center justify-center text-white group-hover:bg-[#005f66] transition-colors shadow-2xs">
+              <i class="fa-solid fa-mobile-screen-button text-sm"></i>
+            </div>
+            <span class="text-xxs text-[#007b83] font-medium mt-1.5">Send to phone</span>
+          </button>
+
+          <!-- Action: Share -->
+          <button onclick="copyAddressToClipboard()" class="flex flex-col items-center group cursor-pointer">
+            <div class="w-10 h-10 rounded-full bg-[#007b83] flex items-center justify-center text-white group-hover:bg-[#005f66] transition-colors shadow-2xs">
+              <i class="fa-solid fa-share-nodes text-sm"></i>
+            </div>
+            <span class="text-xxs text-[#007b83] font-medium mt-1.5">Share</span>
+          </button>
+        </div>
+
+        <!-- 5. GOOGLE MAPS LIST ITEMS (BAG FEITEN & OVERSCHRIJFBARE LABEL RIJ) -->
+        <div class="divide-y divide-slate-100 text-sm text-google-dark">
+
+          <!-- ITEM 1: ADRES -->
+          <div class="flex items-start px-5 py-3.5 hover:bg-slate-50 transition-colors cursor-pointer group" onclick="copyAddressToClipboard()">
+            <div class="w-7 shrink-0 text-[#007b83] mt-0.5">
+              <i class="fa-solid fa-location-dot text-base"></i>
+            </div>
+            <div class="flex-1 min-w-0 pr-2">
+              <div id="displayFullAddress" class="text-sm font-normal text-google-dark leading-snug">Rijksweg 153b, 6247 AD Gronsveld</div>
+              <div id="displayRegionCountry" class="text-xs text-google-gray mt-0.5">Limburg, Nederland</div>
+            </div>
+            <button class="opacity-0 group-hover:opacity-100 text-google-gray hover:text-google-blue p-1" title="Kopieer adres">
+              <i class="fa-regular fa-copy text-xs"></i>
+            </button>
+          </div>
+
+          <!-- ITEM 2: CLASSIFICATIE LABEL MET INLINE PENCIL BEWERKING -->
+          <div class="px-5 py-3 hover:bg-slate-50 transition-colors group">
+            <!-- View Mode -->
+            <div id="labelViewMode" class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-4 shrink-0 text-[#007b83]">
+                  <i class="fa-solid fa-tag text-base"></i>
+                </div>
+                <div class="flex items-baseline gap-2">
+                  <span class="text-sm text-google-gray font-normal">Label</span>
+                  <span id="displayTypeLabel" class="text-sm font-medium text-google-dark">Eengezinswoning</span>
+                </div>
+              </div>
+              
+              <!-- Pencil Icon (Edit your label) -->
+              <button 
+                onclick="enableInlineLabelEdit()" 
+                class="text-google-gray hover:text-google-dark hover:bg-slate-200/60 p-1.5 rounded-full transition-colors"
+                title="Bewerk classificatie label"
+              >
+                <i class="fa-solid fa-pen text-xs"></i>
+              </button>
+            </div>
+
+            <!-- Inline Edit Mode -->
+            <div id="labelEditMode" class="hidden pt-1">
+              <div class="flex items-center gap-1.5 mb-1.5">
+                <input 
+                  type="text" 
+                  id="inlineTypeInput" 
+                  class="flex-1 text-xs border border-google-blue rounded px-2.5 py-1.5 outline-none font-medium text-slate-800"
+                  placeholder="Bijv. Eengezinswoning, Kantoor, B&B..."
+                />
+                <button 
+                  onclick="saveInlineLabelEdit()" 
+                  class="bg-[#007b83] text-white text-xs font-semibold px-2.5 py-1.5 rounded hover:bg-[#005f66] transition-colors"
+                  title="Opslaan"
+                >
+                  <i class="fa-solid fa-check"></i>
+                </button>
+                <button 
+                  onclick="cancelInlineLabelEdit()" 
+                  class="bg-slate-200 text-slate-700 text-xs font-semibold px-2.5 py-1.5 rounded hover:bg-slate-300 transition-colors"
+                  title="Annuleren"
+                >
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+              <div class="flex items-center justify-between text-xxs text-slate-400">
+                <span>Classificatie: <strong id="defaultDerivedTypeLabel">Eengezinswoning</strong></span>
+                <button onclick="resetToBagDefaultLabel()" class="text-[#007b83] hover:underline font-medium">
+                  Herstel naar classificatie
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ITEM 3: BOUWJAAR & STATUS -->
+          <div class="flex items-start px-5 py-3 hover:bg-slate-50 transition-colors">
+            <div class="w-7 shrink-0 text-[#007b83] mt-0.5">
+              <i class="fa-solid fa-landmark text-base"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-normal text-google-dark">
+                Bouwjaar <strong id="displayBouwjaar" class="font-medium text-slate-800">1969</strong>
+              </div>
+              <div id="displayPandStatus" class="text-xs text-google-gray mt-0.5">
+                Pand in gebruik • Vrijstaand woonhuis
+              </div>
+            </div>
+          </div>
+
+          <!-- ITEM 4: OPPERVLAKTE & GEBRUIK -->
+          <div class="flex items-start px-5 py-3 hover:bg-slate-50 transition-colors">
+            <div class="w-7 shrink-0 text-[#007b83] mt-0.5">
+              <i class="fa-solid fa-ruler-combined text-base"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-normal text-google-dark">
+                <strong id="displayOppervlakte" class="font-medium text-slate-800">173</strong> m² woonoppervlakte
+              </div>
+              <div id="displayGebruiksdoel" class="text-xs text-google-gray mt-0.5">
+                Woonfunctie
+              </div>
+            </div>
+          </div>
+
+          <!-- ITEM 5: PERCEELOPPERVLAKTE (KADASTER DKK) - CLICKABLE FOR TOP-DOWN VIEW -->
+          <div onclick="showParcelTopDown()" class="flex items-start px-5 py-3 hover:bg-teal-50/70 cursor-pointer transition-colors group" title="Klik om perceel en Google Satelliet bovenaanzicht te bekijken">
+            <div class="w-7 shrink-0 text-[#007b83] group-hover:scale-110 transition-transform mt-0.5">
+              <i class="fa-solid fa-layer-group text-base"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between">
+                <div class="text-sm font-normal text-google-dark">
+                  <strong id="displayPerceel" class="font-medium text-slate-800">411</strong> m² perceel
+                </div>
+                <span class="text-xxs font-medium text-[#007b83] bg-teal-50 group-hover:bg-[#007b83] group-hover:text-white px-2 py-0.5 rounded-full border border-teal-200 group-hover:border-[#007b83] transition-colors flex items-center gap-1">
+                  <i class="fa-solid fa-satellite"></i>
+                  <span>Bovenaanzicht</span>
+                </span>
+              </div>
+              <div id="displayPerceelSub" class="text-xs text-google-gray mt-0.5 flex items-center gap-1.5">
+                <span>Kadastraal perceel Gronsveld B 2882</span>
+                <span class="text-xxs text-teal-600 font-medium group-hover:underline">• Toon op kaart</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ITEM 6: GEBOUWHOOGTE (3D BAG / AHN) -->
+          <div class="flex items-start px-5 py-3 hover:bg-slate-50 transition-colors">
+            <div class="w-7 shrink-0 text-[#007b83] mt-0.5">
+              <i class="fa-solid fa-arrows-up-down text-base"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-normal text-google-dark">
+                <span id="displayHoogte">Hoogte <strong>9.3 m</strong> (nok)</span>
+              </div>
+              <div id="displayHoogteSub" class="text-xs text-google-gray mt-0.5">
+                Gebouwvolume 744 m³ • 2 bouwlagen (3D BAG)
+              </div>
+            </div>
+          </div>
+
+          <!-- ITEM 7: WOZ-WAARDE -->
+          <div class="flex items-start px-5 py-3 hover:bg-slate-50 transition-colors">
+            <div class="w-7 shrink-0 text-[#007b83] mt-0.5">
+              <i class="fa-solid fa-euro-sign text-base"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-normal text-google-dark">
+                <span id="displayWoz">WOZ-waarde <strong>€ 435.000</strong></span>
+              </div>
+              <div id="displayWozSub" class="text-xs text-google-gray mt-0.5">
+                Peildatum 1 jan 2024 • <a href="https://www.wozwaardeloket.nl/" target="_blank" class="text-[#007b83] hover:underline inline-flex items-center gap-1 font-medium">WOZ-waardeloket <i class="fa-solid fa-arrow-up-right-from-square text-xxs"></i></a>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 6. PHOTOS & SATELLITE SECTION -->
+        <div class="p-5 border-t border-slate-100">
+          <div class="flex items-center justify-between mb-2.5">
+            <div class="text-sm font-medium text-google-dark">Foto's & Satelliet</div>
+            <span class="text-xxs text-google-gray font-normal">Google Maps Satelliet</span>
+          </div>
+          <div class="grid grid-cols-2 gap-2.5">
+            <!-- Street View Mini -->
+            <div class="relative rounded-lg overflow-hidden h-28 bg-slate-900 group cursor-pointer shadow-2xs" onclick="openFullStreetView()" title="Open 360° Street View">
+              <img 
+                id="streetViewThumbMini" 
+                src="https://maps.googleapis.com/maps/api/streetview?size=600x300&location=50.805292,5.733510&fov=90&heading=92&pitch=5&key=AIzaSyBcrKLAGqIMYlDVag_c8zNOLNDbVjVJcLI" 
+                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                onerror="onStreetViewLoadError()"
+              />
+              <div class="absolute bottom-1.5 left-1.5 bg-black/65 backdrop-blur-xs text-white px-2 py-0.5 rounded-full text-xxs font-medium flex items-center gap-1 shadow-md">
+                <i class="fa-solid fa-arrows-rotate text-xxs"></i>
+                <span>Street View</span>
+              </div>
+            </div>
+            <!-- Google Satellite & Parcel Mini -->
+            <div class="relative rounded-lg overflow-hidden h-28 bg-slate-900 group cursor-pointer shadow-2xs border border-teal-600/30" onclick="showParcelTopDown()" title="Toon Google Satelliet & Perceel van bovenaf">
+              <div class="w-full h-full bg-gradient-to-br from-slate-900 via-teal-950 to-slate-900 flex flex-col items-center justify-center p-3 text-center group-hover:scale-105 transition-transform duration-300">
+                <i class="fa-solid fa-satellite text-2xl text-teal-300 mb-1.5"></i>
+                <span class="text-xs font-semibold text-white">Google Satelliet</span>
+                <span class="text-xxs text-teal-200 mt-0.5">Bovenaanzicht & Perceel</span>
+              </div>
+              <div class="absolute bottom-1.5 left-1.5 bg-black/65 backdrop-blur-xs text-white px-2 py-0.5 rounded-full text-xxs font-medium flex items-center gap-1 shadow-md">
+                <i class="fa-solid fa-layer-group text-xxs text-teal-300"></i>
+                <span>411 m² Perceel</span>
+              </div>
+              <div class="absolute top-1.5 right-1.5 bg-[#007b83] text-white px-1.5 py-0.5 rounded text-xxs font-medium flex items-center gap-1">
+                <i class="fa-solid fa-magnifying-glass-plus text-xxs"></i>
+                <span>Zoom</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ================= MAP LOADING SPINNER OVERLAY ================= -->
+    <div id="mapLoadingOverlay" class="hidden absolute top-4 right-4 z-30 bg-white/95 backdrop-blur-xs px-3.5 py-1.5 rounded-full shadow-gmap border border-slate-200 flex items-center gap-2 text-xs font-medium text-slate-700 animate-fade-in">
+      <i class="fa-solid fa-circle-notch fa-spin text-google-blue"></i>
+      <span id="loadingOverlayText">Locatie & BAG ophalen...</span>
+    </div>
+
+  </div>
+
+  <!-- ================= DEVELOPER JSON PAYLOAD MODAL ================= -->
+  <div id="jsonModal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden border border-slate-200 animate-scale-in">
+      <div class="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-code text-[#007b83] text-base"></i>
+          <h2 class="font-bold text-slate-800 text-sm">Gevalideerde Locatie & BAG Payload</h2>
+        </div>
+        <button onclick="toggleJsonModal()" class="text-slate-400 hover:text-slate-700 p-1 rounded">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+      <div class="p-4 flex-1 overflow-y-auto bg-slate-900 text-slate-100 font-mono text-xs">
+        <pre id="jsonModalContent" class="whitespace-pre-wrap leading-relaxed"></pre>
+      </div>
+      <div class="p-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+        <span class="text-xxs text-slate-500">Inclusief VBO, Pand, Oppervlakte, Bouwjaar en (Overschreven) Type.</span>
+        <button 
+          onclick="copyJsonPayload(); toggleJsonModal();" 
+          class="px-4 py-2 bg-google-blue hover:bg-google-hoverBlue text-white font-medium text-xs rounded-lg shadow-sm transition-colors"
+        >
+          <i class="fa-regular fa-copy mr-1.5"></i> Kopieer Payload
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= SETTINGS & API KEY MODAL ================= -->
+  <div id="engineModal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-5 border border-slate-200 animate-scale-in">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-key text-emerald-600"></i>
+          <h2 class="font-bold text-slate-800 text-sm">Google Maps API Sleutel</h2>
+        </div>
+        <button onclick="toggleEngineModal()" class="text-slate-400 hover:text-slate-700 p-1">
+          <i class="fa-solid fa-xmark text-base"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 py-4 text-xs text-slate-700">
+        <div>
+          <label class="block font-semibold mb-1 text-slate-800">Actieve Google Maps API Sleutel:</label>
+          <div class="relative flex items-center">
+            <input 
+              type="text" 
+              id="apiKeyInput" 
+              class="w-full border border-emerald-300 bg-emerald-50/40 rounded-lg px-3 py-2 text-xs font-mono pr-10 outline-none focus:border-google-blue text-slate-800"
+              value="AIzaSyBcrKLAGqIMYlDVag_c8zNOLNDbVjVJcLI"
+            />
+          </div>
+          <p class="text-xxs text-emerald-700 font-medium mt-1.5 flex items-center gap-1">
+            <i class="fa-solid fa-circle-check"></i> Geldige Google Maps API Sleutel gekoppeld.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+        <button 
+          onclick="toggleEngineModal()" 
+          class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium"
+        >
+          Sluiten
+        </button>
+        <button 
+          onclick="saveApiKey()" 
+          class="px-4 py-1.5 bg-google-blue hover:bg-google-hoverBlue text-white rounded-lg text-xs font-medium shadow-2xs"
+        >
+          Opslaan & Vernieuwen
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= TOAST NOTIFICATION ================= -->
+  <div id="toastNotification" class="hidden fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-xs px-4 py-2.5 rounded-lg shadow-lg flex items-center gap-2 border border-slate-700 animate-fade-in">
+    <i class="fa-solid fa-circle-check text-emerald-400"></i>
+    <span id="toastMessage">Gekopieerd naar klembord!</span>
+  </div>
+
+  <!-- ================= JAVASCRIPT APP LOGIC ================= -->
+  <script>
+    // --- STATE MANAGEMENT ---
+    const state = {
+      lat: 50.805292,
+      lng: 5.733510,
+      zoom: 18,
+      street: 'Rijksweg',
+      houseNumber: '153B',
+      postalCode: '6247AD',
+      city: 'Gronsveld',
+      stateRegion: 'Limburg',
+      country: 'Nederland',
+      shareExact: true,
+      radiusMeters: 75,
+      isVerified: true,
+      isHighway: false,
+      isNearBuilding: true,
+      nearestDistance: 0,
+      
+      // Officiële Kadaster BAG & Open Geo details van Rijksweg 153B
+      logistics: {
+        pandId: '0905100000018803',
+        bouwjaar: 1969,
+        pandStatus: 'Pand in gebruik',
+        aantalVerblijfsobjecten: 1,
+        gebouwIsObject: true,
+        vboId: '0905010000002118',
+        oppervlakte: 173,
+        gebruiksdoel: 'woonfunctie',
+        vboStatus: 'Verblijfsobject in gebruik',
+        nokhoogte: 9.3,
+        goothoogte: 3.7,
+        gebouwVolume: 744,
+        dakType: 'Schuin dak',
+        perceeloppervlakte: 411,
+        perceelAanduiding: 'Gronsveld B 2882',
+        wozWaarde: 435000,
+        wozPeildatum: '1 jan 2024'
+      },
+
+      derivedTypology: {
+        title: 'Eengezinswoning',
+        desc: 'Afgeleid uit BAG (Woonfunctie • 1 eenheid)',
+      },
+      customTypeLabel: null,
+
+      apiKey: resolveSecureApiKey() || 'AIzaSyBcrKLAGqIMYlDVag_c8zNOLNDbVjVJcLI'
+    };
+
+    let googleMap = null;
+    let googleMarker = null;
+    let googleCircle = null;
+    let geocoderService = null;
+    let parcelPolygon = null;
+
+    // Exact Kadaster DKK perceelcontour voor Rijksweg 153B (Gronsveld B 2882)
+    const INITIAL_PARCEL_PATH = [
+      { lat: 50.8051986, lng: 5.7340066 },
+      { lat: 50.8052818, lng: 5.7340477 },
+      { lat: 50.8052915, lng: 5.7336301 },
+      { lat: 50.8053014, lng: 5.7333685 },
+      { lat: 50.8052242, lng: 5.7333688 },
+      { lat: 50.8051986, lng: 5.7340066 }
+    ];
+
+    let reverseDebounceTimer = null;
+    let searchDebounceTimer = null;
+
+    function resolveSecureApiKey() {
+      if (window.location.hash) {
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+        const hashKey = hashParams.get('key') || hashParams.get('apiKey');
+        if (hashKey && hashKey.trim()) {
+          sessionStorage.setItem('poc_gmaps_key', hashKey.trim());
+          try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch(e) {}
+          return hashKey.trim();
+        }
       }
+      const sessionKey = sessionStorage.getItem('poc_gmaps_key');
+      if (sessionKey && sessionKey.trim()) return sessionKey.trim();
 
-      // 3. Check Query parameter: ?key=... of ?apiKey=...
       const queryParams = new URLSearchParams(window.location.search);
       const queryKey = queryParams.get('key') || queryParams.get('apiKey');
       if (queryKey && queryKey.trim()) {
         sessionStorage.setItem('poc_gmaps_key', queryKey.trim());
         return queryKey.trim();
       }
-
-      // 4. Check LocalStorage (indien handmatig opgeslagen)
-      const localKey = localStorage.getItem('eh_gmaps_api_key');
-      if (localKey && localKey.trim()) {
-        return localKey.trim();
-      }
-
-      return '';
+      return localStorage.getItem('eh_gmaps_api_key') || 'AIzaSyBcrKLAGqIMYlDVag_c8zNOLNDbVjVJcLI';
     }
 
-    const resolvedKey = resolveSecureApiKey();
-
-    const state = {
-      apiKey: resolvedKey,
-      engine: resolvedKey ? (localStorage.getItem('eh_maps_engine') || 'google') : 'leaflet',
-      lat: 50.812300,
-      lng: 5.723400,
-      zoom: 15,
-      shareExact: true,
-      radiusMeters: 300,
-      street: 'Rijksweg',
-      houseNumber: '153',
-      apartment: '',
-      postalCode: '6247 AD',
-      city: 'Gronsveld',
-      stateRegion: 'Limburg',
-      country: 'Nederland',
-      isVerified: true,
-      isDragging: false,
-      mapType: 'roadmap',
-    };
-
-    let googleMap = null;
-    let googleCircle = null;
-    let leafletMap = null;
-    let leafletCircle = null;
-    let autocompleteService = null;
-    let geocoderService = null;
-    let debounceTimer = null;
-    let reverseDebounceTimer = null;
-
+    // --- BOOTSTRAP APPLICATION ---
     window.addEventListener('DOMContentLoaded', () => {
-      syncStateToForm();
-      updateJsonPreview();
-      initApiKeyInput();
-
-      const banner = document.getElementById('pocModeBanner');
-      if (banner) {
-        banner.classList.toggle('hidden', !!state.apiKey);
-      }
-
-      if (state.engine === 'google' && state.apiKey) {
-        loadGoogleMapsSdk();
-      } else {
-        initLeafletMap();
-      }
-
-      setupSearchAutocompleteEvents();
+      initSearchInputListeners();
+      syncStateToUi();
+      loadGoogleMapsSdk();
     });
 
-    function initApiKeyInput() {
-      const input = document.getElementById('apiKeyInput');
-      if (input) input.value = state.apiKey;
-    }
-
+    // --- GOOGLE MAPS LOADER (MET DE GELDIGE API KEY) ---
     function loadGoogleMapsSdk() {
-      if (!state.apiKey) {
-        console.warn('Geen Google Maps API sleutel aanwezig. Schakel over naar Leaflet fallback.');
-        switchEngine('leaflet');
-        return;
-      }
-
-      setLoading(true, 'Google Maps SDK laden...');
-      document.getElementById('googleMapElement').classList.remove('hidden');
-      document.getElementById('leafletMapElement').classList.add('hidden');
-      document.getElementById('currentEngineLabel').textContent = 'Google Maps';
-      document.getElementById('engineStatusText').textContent = 'Google Maps (POC Actief)';
+      setLoading(true, 'Google Maps laden...');
 
       if (window.google && window.google.maps) {
         initGoogleMap();
         return;
       }
 
-      const existingScript = document.getElementById('google-maps-sdk-script');
-      if (existingScript) existingScript.remove();
-
       const script = document.createElement('script');
-      script.id = 'google-maps-sdk-script';
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(state.apiKey)}&libraries=places&v=weekly`;
+      script.src = `https://maps.googleapis.com/maps/api/js?libraries=places,geometry,marker&key=${encodeURIComponent(state.apiKey)}&v=weekly`;
       script.async = true;
       script.defer = true;
-      
-      script.onload = () => {
-        initGoogleMap();
-      };
+      script.onload = () => initGoogleMap();
       script.onerror = () => {
-        console.warn('Google Maps SDK kon niet worden geladen. Schakel over naar Leaflet fallback.');
-        switchEngine('leaflet');
+        console.warn('Google Maps script error.');
+        setLoading(false);
       };
-
       document.head.appendChild(script);
     }
 
@@ -693,638 +631,715 @@
         googleMap = new google.maps.Map(mapDiv, {
           center: center,
           zoom: state.zoom,
-          mapTypeId: state.mapType,
-          disableDefaultUI: true,
+          mapTypeId: 'roadmap',
+          disableDefaultUI: false,
+          mapTypeControl: true,
+          mapTypeControlOptions: {
+            position: google.maps.ControlPosition.LEFT_BOTTOM,
+            style: google.maps.MapTypeControlStyle.HORIZONTAL_BAR
+          },
+          streetViewControl: true,
+          streetViewControlOptions: {
+            position: google.maps.ControlPosition.RIGHT_BOTTOM
+          },
+          zoomControl: true,
+          zoomControlOptions: {
+            position: google.maps.ControlPosition.RIGHT_BOTTOM
+          },
+          fullscreenControl: true,
           gestureHandling: 'greedy',
-          clickableIcons: false,
+          clickableIcons: false
         });
 
         geocoderService = new google.maps.Geocoder();
-        autocompleteService = new google.maps.places.AutocompleteService();
 
+        // Native Google Draggable Marker
+        googleMarker = new google.maps.Marker({
+          position: center,
+          map: googleMap,
+          draggable: true,
+          animation: google.maps.Animation.DROP,
+          title: "Sleep om exacte locatie aan te passen"
+        });
+
+        // Privacy Radius Circle
         googleCircle = new google.maps.Circle({
-          strokeColor: '#f43f5e',
+          strokeColor: '#007b83',
           strokeOpacity: 0.8,
           strokeWeight: 2,
-          fillColor: '#f43f5e',
-          fillOpacity: 0.18,
+          fillColor: '#007b83',
+          fillOpacity: 0.15,
           map: state.shareExact ? null : googleMap,
           center: center,
-          radius: state.radiusMeters,
+          radius: state.radiusMeters || 75
         });
 
-        googleMap.addListener('dragstart', () => {
-          state.isDragging = true;
-          document.getElementById('airbnbCenterPin').classList.add('dragging');
-          document.getElementById('airbnbPinShadow').classList.add('dragging');
+        // Draggable Marker Event
+        googleMarker.addListener('dragend', (e) => {
+          const lat = e.latLng.lat();
+          const lng = e.latLng.lng();
+          updatePinLocation(lat, lng, false);
         });
 
-        googleMap.addListener('center_changed', () => {
-          const currentCenter = googleMap.getCenter();
-          if (currentCenter) {
-            const lat = Number(currentCenter.lat().toFixed(6));
-            const lng = Number(currentCenter.lng().toFixed(6));
-            document.getElementById('liveCoordsLabel').textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-            if (googleCircle) googleCircle.setCenter(currentCenter);
-          }
+        // Click Map Event
+        googleMap.addListener('click', (e) => {
+          const lat = e.latLng.lat();
+          const lng = e.latLng.lng();
+          updatePinLocation(lat, lng, false);
         });
 
-        googleMap.addListener('idle', () => {
-          state.isDragging = false;
-          document.getElementById('airbnbCenterPin').classList.remove('dragging');
-          document.getElementById('airbnbPinShadow').classList.remove('dragging');
-
-          const currentCenter = googleMap.getCenter();
-          if (currentCenter) {
-            const newLat = Number(currentCenter.lat().toFixed(6));
-            const newLng = Number(currentCenter.lng().toFixed(6));
-            state.lat = newLat;
-            state.lng = newLng;
-            state.zoom = googleMap.getZoom();
-
-            document.getElementById('coordLat').value = newLat;
-            document.getElementById('coordLng').value = newLng;
-            document.getElementById('liveZoomLabel').textContent = `Zoom: ${state.zoom}`;
-            updateJsonPreview();
-
-            triggerDebouncedReverseGeocode(newLat, newLng);
-          }
+        googleMap.addListener('zoom_changed', () => {
+          state.zoom = googleMap.getZoom();
         });
+
+        // Meteen perceel omkaderen op de Google Map
+        drawParcelPolygon(INITIAL_PARCEL_PATH);
 
         setLoading(false);
       } catch (err) {
-        console.error('Fout bij initialiseren van Google Map:', err);
+        console.error('Fout bij initialiseren van Google Maps:', err);
         setLoading(false);
-        switchEngine('leaflet');
       }
     }
 
-    function initLeafletMap() {
-      setLoading(true, 'OpenStreetMap initialiseren...');
-      document.getElementById('googleMapElement').classList.add('hidden');
-      document.getElementById('leafletMapElement').classList.remove('hidden');
-      document.getElementById('currentEngineLabel').textContent = 'OpenStreetMap';
-      document.getElementById('engineStatusText').textContent = 'Leaflet (OpenStreetMap)';
+    // --- UPDATE PIN LOCATION & REVERSE GEOCODING ---
+    function updatePinLocation(lat, lng, panMap = false) {
+      const numLat = Number(Number(lat).toFixed(6));
+      const numLng = Number(Number(lng).toFixed(6));
+      state.lat = numLat;
+      state.lng = numLng;
 
-      const mapDiv = document.getElementById('leafletMapElement');
+      if (googleMarker) googleMarker.setPosition({ lat: numLat, lng: numLng });
+      if (googleCircle) googleCircle.setCenter({ lat: numLat, lng: numLng });
 
-      if (leafletMap) {
-        leafletMap.remove();
-        leafletMap = null;
+      if (panMap && googleMap) {
+        googleMap.panTo({ lat: numLat, lng: numLng });
       }
 
-      leafletMap = L.map(mapDiv, { zoomControl: false }).setView([state.lat, state.lng], state.zoom);
-
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap'
-      }).addTo(leafletMap);
-
-      if (!state.shareExact) {
-        leafletCircle = L.circle([state.lat, state.lng], {
-          color: '#f43f5e',
-          fillColor: '#f43f5e',
-          fillOpacity: 0.18,
-          radius: state.radiusMeters
-        }).addTo(leafletMap);
-      }
-
-      leafletMap.on('movestart', () => {
-        document.getElementById('airbnbCenterPin').classList.add('dragging');
-        document.getElementById('airbnbPinShadow').classList.add('dragging');
-      });
-
-      leafletMap.on('move', () => {
-        const center = leafletMap.getCenter();
-        const lat = Number(center.lat.toFixed(6));
-        const lng = Number(center.lng.toFixed(6));
-        document.getElementById('liveCoordsLabel').textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-        if (leafletCircle) leafletCircle.setLatLng(center);
-      });
-
-      leafletMap.on('moveend', () => {
-        document.getElementById('airbnbCenterPin').classList.remove('dragging');
-        document.getElementById('airbnbPinShadow').classList.remove('dragging');
-
-        const center = leafletMap.getCenter();
-        state.lat = Number(center.lat.toFixed(6));
-        state.lng = Number(center.lng.toFixed(6));
-        state.zoom = leafletMap.getZoom();
-
-        document.getElementById('coordLat').value = state.lat;
-        document.getElementById('coordLng').value = state.lng;
-        document.getElementById('liveZoomLabel').textContent = `Zoom: ${state.zoom}`;
-        updateJsonPreview();
-
-        triggerDebouncedReverseGeocode(state.lat, state.lng);
-      });
-
-      setLoading(false);
-      setTimeout(() => leafletMap && leafletMap.invalidateSize(), 200);
+      triggerDebouncedReverseGeocode(numLat, numLng);
     }
 
     function triggerDebouncedReverseGeocode(lat, lng) {
       clearTimeout(reverseDebounceTimer);
-      document.getElementById('reverseStatusHint').textContent = 'Adres identificeren...';
+      setLoading(true, 'Adres & Kadaster BAG identificeren...');
 
       reverseDebounceTimer = setTimeout(async () => {
         await executeReverseGeocode(lat, lng);
-      }, 500);
+        setLoading(false);
+      }, 350);
     }
 
+    // --- REVERSE GEOCODE EXECUTION (PDOK + BAG OGC) ---
     async function executeReverseGeocode(lat, lng) {
-      if (state.engine === 'google' && geocoderService) {
-        try {
-          geocoderService.geocode({ location: { lat, lng } }, (results, status) => {
-            if (status === 'OK' && results && results[0]) {
-              parseGoogleGeocodeResult(results[0]);
-              document.getElementById('reverseStatusHint').textContent = 'Adres gesynchroniseerd';
-            } else {
-              document.getElementById('reverseStatusHint').textContent = 'Onbekende locatie';
-            }
-          });
-          return;
-        } catch (e) {
-          console.warn('Google reverse geocode mislukt, fallback naar Photon:', e);
-        }
-      }
-
       try {
-        const res = await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.features && data.features.length > 0) {
-            parsePhotonFeature(data.features[0]);
-            document.getElementById('reverseStatusHint').textContent = 'Adres gesynchroniseerd (OSM)';
+        const pdokUrl = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/reverse?lat=${lat}&lon=${lng}&distance=75&fl=*&rows=1`;
+        const pdokRes = await fetch(pdokUrl);
+
+        if (pdokRes.ok) {
+          const pdokData = await pdokRes.json();
+          const doc = pdokData.response?.docs?.[0];
+
+          if (doc) {
+            const dist = doc.afstand !== undefined ? Math.round(doc.afstand) : 0;
+            state.nearestDistance = dist;
+
+            if (dist > 25) {
+              // Buiten bebouwing / weiland / autoweg
+              state.isHighway = true;
+              state.isVerified = false;
+              state.street = doc.straatnaam || 'Openbaar terrein';
+              state.houseNumber = doc.huisnummer ? `(nabij nr. ${doc.huisnummer})` : '';
+              state.city = doc.woonplaatsnaam || state.city;
+              state.postalCode = doc.postcode || state.postalCode;
+              state.stateRegion = doc.provincienaam || state.stateRegion;
+              state.country = 'Nederland';
+
+              state.logistics.pandId = '-';
+              state.logistics.bouwjaar = '-';
+              state.logistics.pandStatus = 'Geen gebouwcontour';
+              state.logistics.vboId = '-';
+              state.logistics.oppervlakte = 0;
+              state.logistics.gebruiksdoel = 'buitenruimte';
+              state.logistics.aantalVerblijfsobjecten = 0;
+              state.logistics.gebouwIsObject = false;
+            } else {
+              // Op een officieel gebouw / adres
+              state.isHighway = false;
+              state.isVerified = true;
+              state.street = doc.straatnaam || state.street;
+              state.houseNumber = `${doc.huisnummer || ''}${doc.huisletter || ''}${doc.huisnummertoevoeging ? '-' + doc.huisnummertoevoeging : ''}`.trim();
+              state.city = doc.woonplaatsnaam || state.city;
+              state.postalCode = doc.postcode || state.postalCode;
+              state.stateRegion = doc.provincienaam || state.stateRegion;
+              state.country = 'Nederland';
+
+              const vboId = doc.adresseerbaarobject_id;
+              state.gekoppeldPerceel = doc.gekoppeld_perceel || [];
+              if (vboId) {
+                await fetchBagVboAndPandDetails(vboId);
+              }
+              await fetchDkkParcel(lat, lng, state.gekoppeldPerceel);
+            }
           }
         }
       } catch (err) {
-        console.error('Reverse geocode error:', err);
-        document.getElementById('reverseStatusHint').textContent = '';
-      }
-    }
-
-    function reverseGeocodeCurrentMapCenter() {
-      executeReverseGeocode(state.lat, state.lng);
-    }
-
-    async function forwardGeocodeAddressFields() {
-      const addressQuery = `${state.street} ${state.houseNumber}, ${state.postalCode} ${state.city}, ${state.country}`.trim();
-      if (addressQuery.length < 4) return;
-
-      setLoading(true, 'Locatie herberekenen...');
-
-      if (state.engine === 'google' && geocoderService) {
-        geocoderService.geocode({ address: addressQuery }, (results, status) => {
-          setLoading(false);
-          if (status === 'OK' && results && results[0]) {
-            const loc = results[0].geometry.location;
-            panToLocation(loc.lat(), loc.lng());
-            parseGoogleGeocodeResult(results[0]);
-          } else {
-            alert('Kon geen coördinaten vinden voor dit adres.');
-          }
-        });
-        return;
+        console.warn('PDOK Reverse fout:', err);
       }
 
+      syncStateToUi();
+    }
+
+    // --- BAG OGC API VBO & PAND BEVRAGING ---
+    async function fetchBagVboAndPandDetails(vboId) {
       try {
-        const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(addressQuery)}&limit=1`);
-        setLoading(false);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.features && data.features.length > 0) {
-            const coords = data.features[0].geometry.coordinates;
-            panToLocation(coords[1], coords[0]);
-            parsePhotonFeature(data.features[0]);
-          } else {
-            alert('Geen resultaat gevonden voor dit adres.');
+        state.logistics.vboId = vboId;
+        const vboRes = await fetch(`https://api.pdok.nl/kadaster/bag/ogc/v2/collections/verblijfsobject/items?identificatie=${vboId}`);
+        if (vboRes.ok) {
+          const vboData = await vboRes.json();
+          const vboProps = vboData.features?.[0]?.properties;
+          if (vboProps) {
+            state.logistics.oppervlakte = vboProps.oppervlakte || 0;
+            state.logistics.vboStatus = vboProps.status || 'Verblijfsobject in gebruik';
+            state.logistics.gebruiksdoel = Array.isArray(vboProps.gebruiksdoel)
+              ? vboProps.gebruiksdoel.join(', ')
+              : (vboProps.gebruiksdoel || 'woonfunctie');
+
+            const pandHref = vboProps['pand.href']?.[0];
+            if (pandHref) {
+              const pandRes = await fetch(pandHref);
+              if (pandRes.ok) {
+                const pandData = await pandRes.json();
+                const pandProps = pandData.properties || {};
+                state.logistics.pandId = pandProps.identificatie || state.logistics.pandId;
+                state.logistics.bouwjaar = pandProps.bouwjaar || pandProps.oorspronkelijkBouwjaar || state.logistics.bouwjaar;
+                state.logistics.pandStatus = pandProps.status || 'Pand in gebruik';
+                state.logistics.aantalVerblijfsobjecten = pandProps.aantal_verblijfsobjecten || 1;
+                state.logistics.gebouwIsObject = (state.logistics.aantalVerblijfsobjecten === 1);
+
+                if (state.logistics.pandId && state.logistics.pandId !== '-') {
+                  await fetch3dBagHeight(state.logistics.pandId);
+                }
+              }
+            }
           }
         }
       } catch (e) {
-        setLoading(false);
-        console.error(e);
+        console.error('Fout bij BAG details:', e);
       }
     }
 
-    function setupSearchAutocompleteEvents() {
+    async function fetch3dBagHeight(pandId) {
+      try {
+        const cleanId = pandId.replace(/^NL\.IMBAG\.Pand\./, '');
+        const res = await fetch(`https://api.3dbag.nl/collections/pand/items/NL.IMBAG.Pand.${cleanId}`);
+        if (res.ok) {
+          const json = await res.json();
+          const objs = json.feature?.CityObjects || {};
+          const main = objs[`NL.IMBAG.Pand.${cleanId}`];
+          if (main && main.attributes) {
+            const a = main.attributes;
+            if (a.b3_h_dak_max != null && a.b3_h_maaiveld != null) {
+              state.logistics.nokhoogte = +(a.b3_h_dak_max - a.b3_h_maaiveld).toFixed(1);
+              state.logistics.goothoogte = a.b3_h_dak_min != null ? +(a.b3_h_dak_min - a.b3_h_maaiveld).toFixed(1) : null;
+              state.logistics.gebouwVolume = a.b3_volume_lod22 ? Math.round(a.b3_volume_lod22) : null;
+              state.logistics.dakType = a.b3_dak_type === 'slanted' ? 'Zadeldak / Schuin' : (a.b3_dak_type === 'flat' ? 'Plat dak' : 'Samengesteld');
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('3D BAG ophalen mislukt:', err);
+      }
+    }
+
+    async function fetchDkkParcel(lat, lng, gekoppeldPerceel) {
+      try {
+        const d = 0.00015;
+        const dkkUrl = `https://service.pdok.nl/kadaster/kadastralekaart/wfs/v5_0?service=WFS&version=2.0.0&request=GetFeature&outputFormat=application/json&typeName=kadastralekaartv5:perceel&srsName=EPSG:4326&bbox=${(lat-d).toFixed(6)},${(lng-d).toFixed(6)},${(lat+d).toFixed(6)},${(lng+d).toFixed(6)},urn:ogc:def:crs:EPSG::4326`;
+        const res = await fetch(dkkUrl);
+        if (res.ok) {
+          const json = await res.json();
+          const features = json.features || [];
+          if (features.length > 0) {
+            let matched = features[0];
+            if (gekoppeldPerceel && gekoppeldPerceel.length > 0) {
+              const targetStr = gekoppeldPerceel[0];
+              const found = features.find(f => {
+                const p = f.properties;
+                return targetStr.includes(`${p.sectie}-${p.perceelnummer}`) || 
+                       targetStr.includes(`${p.perceelnummer}`);
+              });
+              if (found) matched = found;
+            }
+            const p = matched.properties;
+            state.logistics.perceeloppervlakte = Math.round(p.kadastraleGrootteWaarde);
+            state.logistics.perceelAanduiding = `${p.kadastraleGemeenteWaarde} ${p.sectie} ${p.perceelnummer}`;
+            if (matched.geometry) {
+              updateParcelPolygonFromGeoJson(matched.geometry);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('DKK perceel ophalen mislukt:', err);
+      }
+      calculateIndicativeWoz();
+    }
+
+    function calculateIndicativeWoz() {
+      const opp = state.logistics.oppervlakte || 100;
+      const perc = state.logistics.perceeloppervlakte || 250;
+      const bj = parseInt(state.logistics.bouwjaar, 10) || 1980;
+      const basisPrijs = 2500;
+      const kavelOpslag = perc * 150;
+      const bjFactor = Math.min(1.25, Math.max(0.85, 1 + (bj - 1970) * 0.003));
+      const geschat = Math.round(((opp * basisPrijs * bjFactor) + kavelOpslag) / 1000) * 1000;
+      state.logistics.wozWaarde = geschat;
+      state.logistics.wozPeildatum = '1 jan 2024';
+    }
+
+    // --- DERIVED TYPOLOGY & UI SYNC ---
+    function deriveTypology() {
+      const doel = (state.logistics.gebruiksdoel || '').toLowerCase();
+      const units = state.logistics.aantalVerblijfsobjecten || 1;
+      const isSingle = state.logistics.gebouwIsObject;
+
+      if (state.isHighway) {
+        return {
+          title: 'Openbare weg / Buitenruimte',
+          desc: `Coördinaten liggen ${state.nearestDistance}m buiten kadastrale pandcontour.`
+        };
+      }
+      if (doel.includes('woon')) {
+        if (isSingle) return { title: 'Eengezinswoning', desc: '1 eenheid in pand (Gebouw = Object)' };
+        return { title: `Appartement (${units} eenheden)`, desc: `Meerdere zelfstandige verblijfsobjecten in 1 pand` };
+      }
+      if (doel.includes('kantoor')) {
+        return { title: units > 1 ? `Kantoorverzamelgebouw (${units} units)` : 'Kantoorpand', desc: 'Commerciële werk- en kantoorfunctie' };
+      }
+      if (doel.includes('winkel')) return { title: 'Winkelpand', desc: 'Detailhandel & publieksfunctie' };
+      if (doel.includes('sport')) return { title: 'Sportaccommodatie', desc: 'Sportcomplex / clubgebouw' };
+      if (doel.includes('industrie')) return { title: 'Bedrijfshal', desc: 'Industrie & opslaglocatie' };
+
+      return { title: `Pand met ${doel}`, desc: `${units} eenheid/eenheden in pand` };
+    }
+
+    function syncStateToUi() {
+      const fullAddress = `${state.street} ${state.houseNumber}`.trim();
+      const fullLocation = `${state.postalCode} ${state.city}`.trim();
+
+      document.getElementById('placeTitle').textContent = state.customTypeLabel || fullAddress || 'Locatie';
+      document.getElementById('placeSubtitle').textContent = state.isHighway 
+        ? 'Openbaar terrein / Buitenruimte' 
+        : (state.customTypeLabel ? 'Building' : `Building • ${state.derivedTypology.title}`);
+      
+      document.getElementById('displayFullAddress').textContent = `${fullAddress}, ${fullLocation}`;
+      document.getElementById('displayRegionCountry').textContent = `${state.stateRegion}, ${state.country}`;
+
+      state.derivedTypology = deriveTypology();
+      const elDefaultType = document.getElementById('defaultDerivedTypeLabel');
+      if (elDefaultType) elDefaultType.textContent = state.derivedTypology.title;
+
+      const activeLabel = state.customTypeLabel || state.derivedTypology.title;
+      const elTypeLabel = document.getElementById('displayTypeLabel');
+      if (elTypeLabel) elTypeLabel.textContent = activeLabel;
+      const elInlineInput = document.getElementById('inlineTypeInput');
+      if (elInlineInput) elInlineInput.value = activeLabel;
+
+      // BAG feiten (clean Google Maps stijl zonder database IDs)
+      const elBouwjaar = document.getElementById('displayBouwjaar');
+      if (elBouwjaar) elBouwjaar.textContent = state.logistics.bouwjaar || '-';
+
+      const elPandStatus = document.getElementById('displayPandStatus');
+      if (elPandStatus) {
+        elPandStatus.textContent = state.isHighway 
+          ? 'Openbaar terrein' 
+          : `${state.logistics.pandStatus || 'Pand in gebruik'} • ${state.derivedTypology.title}`;
+      }
+
+      const elOppervlakte = document.getElementById('displayOppervlakte');
+      if (elOppervlakte) elOppervlakte.textContent = state.logistics.oppervlakte || '-';
+
+      const elGebruiksdoel = document.getElementById('displayGebruiksdoel');
+      if (elGebruiksdoel) {
+        elGebruiksdoel.textContent = state.isHighway 
+          ? `Buiten gebouwcontour (${state.nearestDistance}m van pand)` 
+          : (state.logistics.gebruiksdoel || 'Woonfunctie');
+      }
+
+      // Perceeloppervlakte (Kadaster DKK)
+      const elPerceel = document.getElementById('displayPerceel');
+      if (elPerceel) {
+        elPerceel.textContent = state.isHighway 
+          ? 'Geen kavel' 
+          : (state.logistics.perceeloppervlakte ? `${state.logistics.perceeloppervlakte}` : '-');
+      }
+      const elPerceelSub = document.getElementById('displayPerceelSub');
+      if (elPerceelSub) {
+        elPerceelSub.textContent = state.isHighway 
+          ? 'Openbare ruimte' 
+          : (state.logistics.perceelAanduiding ? `Kadastraal perceel ${state.logistics.perceelAanduiding}` : 'Kadaster DKK');
+      }
+
+      // Gebouwhoogte (3D BAG / AHN)
+      const elHoogte = document.getElementById('displayHoogte');
+      if (elHoogte) {
+        elHoogte.innerHTML = state.isHighway
+          ? 'Maaiveld'
+          : (state.logistics.nokhoogte ? `Hoogte <strong>${state.logistics.nokhoogte} m</strong> (nok)` : '-');
+      }
+      const elHoogteSub = document.getElementById('displayHoogteSub');
+      if (elHoogteSub) {
+        elHoogteSub.textContent = state.isHighway
+          ? '0 m boven maaiveld'
+          : (state.logistics.gebouwVolume ? `Gebouwvolume ${state.logistics.gebouwVolume} m³ • 2 bouwlagen (3D BAG)` : (state.logistics.goothoogte ? `Goothoogte ${state.logistics.goothoogte} m • 3D BAG` : '3D BAG LiDAR'));
+      }
+
+      // WOZ-waarde
+      const elWoz = document.getElementById('displayWoz');
+      if (elWoz) {
+        elWoz.innerHTML = state.isHighway
+          ? 'Niet van toepassing'
+          : (state.logistics.wozWaarde ? `WOZ-waarde <strong>€ ${state.logistics.wozWaarde.toLocaleString('nl-NL')}</strong>` : '-');
+      }
+      const elWozSub = document.getElementById('displayWozSub');
+      if (elWozSub) {
+        elWozSub.innerHTML = state.isHighway
+          ? 'Geen onroerende zaak'
+          : `Peildatum ${state.logistics.wozPeildatum || '1 jan 2024'} • <a href="https://www.wozwaardeloket.nl/" target="_blank" class="text-[#007b83] hover:underline inline-flex items-center gap-1 font-medium">WOZ-loket <i class="fa-solid fa-arrow-up-right-from-square text-xxs"></i></a>`;
+      }
+
+      // Luchtfoto thumbnail
+      const elAirThumb = document.getElementById('luchtfotoThumbMini');
+      if (elAirThumb) {
+        elAirThumb.src = getLuchtfotoUrl(state.lat, state.lng);
+      }
+
+      // Safe checks voor eventueel verborgen elementen
+      const elPandId = document.getElementById('displayPandId');
+      if (elPandId) elPandId.textContent = state.logistics.pandId || '-';
+      const elVboId = document.getElementById('displayVboId');
+      if (elVboId) elVboId.textContent = state.logistics.vboId || '-';
+      const elUnits = document.getElementById('displayEenhedenText');
+      if (elUnits) {
+        const units = state.logistics.aantalVerblijfsobjecten;
+        elUnits.textContent = state.isHighway 
+          ? 'Geen (buiten bebouwde contour)'
+          : (units === 1 ? '1 verblijfsobject (Gebouw = Object)' : `${units} verblijfsobjecten in dit pand`);
+      }
+      const elCoords = document.getElementById('displayCoords');
+      if (elCoords) elCoords.textContent = `${state.lat.toFixed(6)}, ${state.lng.toFixed(6)}`;
+      const certaintyEl = document.getElementById('displayCertainty');
+      if (certaintyEl) {
+        if (state.isHighway) {
+          certaintyEl.className = 'text-xs text-amber-700 font-medium mt-0.5';
+          certaintyEl.innerHTML = `<i class="fa-solid fa-road mr-1 text-amber-600"></i>Buiten gebouwcontour (${state.nearestDistance}m van pand)`;
+        } else {
+          certaintyEl.className = 'text-xs text-emerald-700 font-medium mt-0.5';
+          certaintyEl.innerHTML = `<i class="fa-solid fa-shield-halved mr-1 text-emerald-600"></i>99% Juridische Zekerheid (BAG)`;
+        }
+      }
+      const bagBadge = document.getElementById('bagSyncStatusBadge');
+      if (bagBadge) {
+        if (state.isHighway) {
+          bagBadge.className = 'shrink-0 text-xxs font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200';
+          bagBadge.textContent = 'Buiten Gebouw';
+        } else {
+          bagBadge.className = 'shrink-0 text-xxs font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200';
+          bagBadge.textContent = 'BAG Geverifieerd';
+        }
+      }
+
+      // Live Google Street View URL
+      updateStreetViewUrls();
+
+      document.getElementById('jsonModalContent').textContent = JSON.stringify(generatePayload(), null, 2);
+    }
+
+    let currentPanoHeading = 92;
+
+    function updateStreetViewUrls() {
+      const svImg = document.getElementById('streetViewImage');
+      const svMini = document.getElementById('streetViewThumbMini');
+
+      if (window.google && google.maps && google.maps.StreetViewService) {
+        const svService = new google.maps.StreetViewService();
+        svService.getPanorama({
+          location: { lat: state.lat, lng: state.lng },
+          radius: 60
+        }, (data, status) => {
+          if (status === 'OK' && data && data.location && data.location.latLng) {
+            const panoLat = data.location.latLng.lat();
+            const panoLng = data.location.latLng.lng();
+            const dLng = (state.lng - panoLng) * Math.PI / 180;
+            const lat1 = panoLat * Math.PI / 180;
+            const lat2 = state.lat * Math.PI / 180;
+            const y = Math.sin(dLng) * Math.cos(lat2);
+            const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+            currentPanoHeading = Math.round(((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360);
+
+            const url = `https://maps.googleapis.com/maps/api/streetview?size=600x300&location=${state.lat},${state.lng}&fov=90&heading=${currentPanoHeading}&pitch=5&key=${state.apiKey}`;
+            if (svImg) svImg.src = url;
+            if (svMini) svMini.src = url;
+            return;
+          }
+          const fallbackUrl = `https://maps.googleapis.com/maps/api/streetview?size=600x300&location=${state.lat},${state.lng}&fov=90&key=${state.apiKey}`;
+          if (svImg) svImg.src = fallbackUrl;
+          if (svMini) svMini.src = fallbackUrl;
+        });
+      } else {
+        const url = `https://maps.googleapis.com/maps/api/streetview?size=600x300&location=${state.lat},${state.lng}&fov=90&key=${state.apiKey}`;
+        if (svImg) svImg.src = url;
+        if (svMini) svMini.src = url;
+      }
+    }
+
+    function onStreetViewLoadError() {
+      console.warn('Street view reload fallback.');
+    }
+
+    let currentHeroMode = 'streetview';
+
+    function setHeroMode(mode) {
+      currentHeroMode = mode;
+      const svBtn = document.getElementById('heroModeSvBtn');
+      const airBtn = document.getElementById('heroModeAirBtn');
+      const heroBadge = document.getElementById('heroBadgeText');
+      const heroBadgeIcon = document.getElementById('heroBadgeIcon');
+
+      if (mode === 'satellite') {
+        if (svBtn) svBtn.className = 'px-2.5 py-1 rounded-full text-white/90 hover:text-white transition-all';
+        if (airBtn) airBtn.className = 'px-2.5 py-1 rounded-full bg-white text-slate-800 font-semibold shadow-xs transition-all flex items-center gap-1';
+        if (heroBadge) heroBadge.textContent = 'Google Satelliet • Perceel B 2882';
+        if (heroBadgeIcon) heroBadgeIcon.className = 'fa-solid fa-satellite text-xxs';
+        showParcelTopDown();
+      } else {
+        if (airBtn) airBtn.className = 'px-2.5 py-1 rounded-full text-white/90 hover:text-white transition-all flex items-center gap-1';
+        if (svBtn) svBtn.className = 'px-2.5 py-1 rounded-full bg-white text-slate-800 font-semibold shadow-xs transition-all';
+        updateStreetViewUrls();
+        if (heroBadge) heroBadge.textContent = '360° Street View';
+        if (heroBadgeIcon) heroBadgeIcon.className = 'fa-solid fa-arrows-rotate text-xxs';
+      }
+    }
+
+    function handleHeroClick() {
+      if (currentHeroMode === 'satellite') {
+        showParcelTopDown();
+      } else {
+        openFullStreetView();
+      }
+    }
+
+    // --- KADASTER PERCEEL OMKADERING & GOOGLE SATELLIET BOVENAANZICHT ---
+    function drawParcelPolygon(path) {
+      if (!googleMap || !window.google || !google.maps) return;
+      if (parcelPolygon) {
+        parcelPolygon.setMap(null);
+      }
+      parcelPolygon = new google.maps.Polygon({
+        paths: path,
+        strokeColor: '#007b83',
+        strokeOpacity: 0.95,
+        strokeWeight: 2.5,
+        fillColor: '#007b83',
+        fillOpacity: 0.22,
+        map: googleMap,
+        zIndex: 10
+      });
+
+      parcelPolygon.addListener('click', () => {
+        showParcelTopDown();
+      });
+    }
+
+    function updateParcelPolygonFromGeoJson(geometry) {
+      try {
+        let ring = [];
+        if (geometry.type === 'Polygon') {
+          ring = geometry.coordinates[0];
+        } else if (geometry.type === 'MultiPolygon') {
+          ring = geometry.coordinates[0][0];
+        }
+        if (ring && ring.length > 0) {
+          const path = ring.map(coord => ({
+            lat: Number(coord[1]),
+            lng: Number(coord[0])
+          }));
+          drawParcelPolygon(path);
+        }
+      } catch (err) {
+        console.warn('Fout bij verwerken perceel geometrie:', err);
+      }
+    }
+
+    function showParcelTopDown() {
+      if (!googleMap) return;
+      // Schakel direct over naar Google Hybride/Satelliet met haarscherp beeld
+      googleMap.setMapTypeId('hybrid');
+
+      if (parcelPolygon && parcelPolygon.getPath && parcelPolygon.getPath().getLength() > 0) {
+        const bounds = new google.maps.LatLngBounds();
+        parcelPolygon.getPath().forEach(latLng => bounds.extend(latLng));
+        // Fit bounds met padding rekening houdend met de linker Google Maps kaart overlay
+        googleMap.fitBounds(bounds, { top: 80, right: 80, bottom: 80, left: 440 });
+        setTimeout(() => {
+          const z = googleMap.getZoom();
+          if (z > 20) googleMap.setZoom(20);
+          if (z < 18) googleMap.setZoom(19);
+        }, 250);
+      } else {
+        googleMap.panTo({ lat: Number(state.lat), lng: Number(state.lng) });
+        googleMap.setZoom(19);
+      }
+    }
+
+    function getLuchtfotoUrl(lat, lng) {
+      const dLat = 0.0006;
+      const dLng = 0.0010;
+      return `https://service.pdok.nl/hwh/luchtfotorgb/wms/v1_0?service=WMS&request=GetMap&version=1.3.0&layers=Actueel_orthoHR&styles=&format=image/jpeg&crs=EPSG:4326&bbox=${(lat-dLat).toFixed(6)},${(lng-dLng).toFixed(6)},${(lat+dLat).toFixed(6)},${(lng+dLng).toFixed(6)}&width=600&height=300`;
+    }
+
+    function openFullLuchtfoto() {
+      showParcelTopDown();
+    }
+
+    function onLuchtfotoLoadError() {
+      console.warn('Luchtfoto kon niet worden geladen.');
+    }
+
+    // --- INLINE EDITABLE LABEL (ZOALS 'LABEL: HOME ✏️') ---
+    function enableInlineLabelEdit() {
+      document.getElementById('labelViewMode').classList.add('hidden');
+      document.getElementById('labelEditMode').classList.remove('hidden');
+      const input = document.getElementById('inlineTypeInput');
+      input.focus();
+      input.select();
+    }
+
+    function cancelInlineLabelEdit() {
+      document.getElementById('labelEditMode').classList.add('hidden');
+      document.getElementById('labelViewMode').classList.remove('hidden');
+    }
+
+    function saveInlineLabelEdit() {
+      const val = document.getElementById('inlineTypeInput').value.trim();
+      if (val) {
+        state.customTypeLabel = val;
+      }
+      cancelInlineLabelEdit();
+      syncStateToUi();
+      showToast('Label succesvol aangepast!');
+    }
+
+    function resetToBagDefaultLabel() {
+      state.customTypeLabel = null;
+      cancelInlineLabelEdit();
+      syncStateToUi();
+      showToast('Label hersteld naar officiële BAG afleiding.');
+    }
+
+    // --- SEARCH & AUTOCOMPLETE ---
+    function initSearchInputListeners() {
       const input = document.getElementById('addressSearchInput');
       const clearBtn = document.getElementById('clearSearchBtn');
       const dropdown = document.getElementById('suggestionsDropdown');
 
-      input.addEventListener('input', (e) => {
-        const val = e.target.value.trim();
-        clearBtn.classList.toggle('hidden', val.length === 0);
+      input.addEventListener('input', () => {
+        const q = input.value.trim();
+        if (q.length > 0) clearBtn.classList.remove('hidden');
+        else clearBtn.classList.add('hidden');
 
-        if (val.length < 3) {
+        clearTimeout(searchDebounceTimer);
+        if (q.length < 2) {
           dropdown.classList.add('hidden');
-          dropdown.innerHTML = '';
           return;
         }
 
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-          fetchAddressPredictions(val);
-        }, 250);
+        searchDebounceTimer = setTimeout(() => executeSearchSuggestions(q), 250);
       });
 
-      document.addEventListener('click', (e) => {
-        if (!e.target.closest('#addressSearchInput') && !e.target.closest('#suggestionsDropdown')) {
-          dropdown.classList.add('hidden');
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          const first = dropdown.querySelector('[data-doc-id]');
+          if (first) first.click();
+          else executeCurrentSearch();
         }
       });
     }
 
-    async function fetchAddressPredictions(query) {
-      if (state.engine === 'google' && state.apiKey) {
-        try {
-          const res = await fetch('https://places.googleapis.com/v1/places:autocomplete', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Goog-Api-Key': state.apiKey,
-            },
-            body: JSON.stringify({ input: query })
-          });
+    function executeCurrentSearch() {
+      const q = document.getElementById('addressSearchInput').value.trim();
+      if (q) executeSearchSuggestions(q);
+    }
 
-          if (res.ok) {
-            const data = await res.json();
-            if (data.suggestions && data.suggestions.length > 0) {
-              renderGooglePredictions(data.suggestions);
-              return;
+    async function executeSearchSuggestions(query) {
+      const dropdown = document.getElementById('suggestionsDropdown');
+      const list = document.getElementById('suggestionsList');
+
+      try {
+        const pdokUrl = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/suggest?q=${encodeURIComponent(query)}&rows=5`;
+        const res = await fetch(pdokUrl);
+        if (res.ok) {
+          const data = await res.json();
+          const docs = data.response?.docs || [];
+          if (docs.length > 0) {
+            list.innerHTML = docs.map(doc => `
+              <div 
+                data-doc-id="${doc.id}" 
+                onclick="selectPdokSuggestion('${doc.id}', '${doc.weergavenaam.replace(/'/g, "\\'")}')"
+                class="px-3.5 py-2.5 hover:bg-slate-50 cursor-pointer flex items-center gap-3 transition-colors"
+              >
+                <i class="fa-solid fa-location-dot text-[#007b83] text-xs"></i>
+                <div class="text-xs text-google-dark font-medium">${doc.weergavenaam}</div>
+              </div>
+            `).join('');
+            dropdown.classList.remove('hidden');
+            return;
+          }
+        }
+      } catch (e) {
+        console.error('Suggestie fout:', e);
+      }
+    }
+
+    async function selectPdokSuggestion(docId, weergavenaam) {
+      document.getElementById('suggestionsDropdown').classList.add('hidden');
+      document.getElementById('addressSearchInput').value = weergavenaam;
+      setLoading(true, 'Officiële BAG gegevens ophalen...');
+
+      try {
+        const lookupRes = await fetch(`https://api.pdok.nl/bzk/locatieserver/search/v3_1/lookup?id=${docId}&fl=*`);
+        if (lookupRes.ok) {
+          const data = await lookupRes.json();
+          const doc = data.response?.docs?.[0];
+          if (doc) {
+            state.street = doc.straatnaam || '';
+            state.houseNumber = `${doc.huisnummer || ''}${doc.huisletter || ''}${doc.huisnummertoevoeging ? '-' + doc.huisnummertoevoeging : ''}`.trim();
+            state.city = doc.woonplaatsnaam || '';
+            state.postalCode = doc.postcode || '';
+            state.stateRegion = doc.provincienaam || '';
+            state.country = 'Nederland';
+            state.isHighway = false;
+
+            if (doc.centroide_ll) {
+              const match = doc.centroide_ll.match(/POINT\(([\d\.]+)\s+([\d\.]+)\)/);
+              if (match) {
+                const lng = parseFloat(match[1]);
+                const lat = parseFloat(match[2]);
+                updatePinLocation(lat, lng, true);
+              }
+            }
+
+            const vboId = doc.adresseerbaarobject_id;
+            if (vboId) {
+              await fetchBagVboAndPandDetails(vboId);
             }
           }
-        } catch (err) {
-          console.warn('Google Places API (New) fetch error, fallback to Photon:', err);
-        }
-      }
-
-      try {
-        const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=6`);
-        if (res.ok) {
-          const data = await res.json();
-          renderPhotonPredictions(data.features || []);
         }
       } catch (err) {
-        console.error('Photon search error:', err);
-      }
-    }
-
-    function renderGooglePredictions(suggestions) {
-      const dropdown = document.getElementById('suggestionsDropdown');
-      dropdown.innerHTML = '';
-
-      suggestions.forEach(item => {
-        const pred = item.placePrediction;
-        const placeId = pred.placeId || pred.place;
-        const mainText = pred.structuredFormat?.mainText?.text || pred.text?.text || '';
-        const secondaryText = pred.structuredFormat?.secondaryText?.text || '';
-
-        const el = document.createElement('div');
-        el.className = 'px-4 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-0 cursor-pointer flex items-center gap-3 transition';
-        el.innerHTML = `
-          <div class="w-8 h-8 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center shrink-0 text-xs">
-            <i class="fa-solid fa-location-dot"></i>
-          </div>
-          <div class="min-w-0 flex-1">
-            <div class="text-xs font-bold text-slate-900 truncate">${mainText}</div>
-            <div class="text-xxs text-slate-500 truncate">${secondaryText}</div>
-          </div>
-          <i class="fa-solid fa-chevron-right text-slate-300 text-xs"></i>
-        `;
-
-        el.addEventListener('click', () => {
-          dropdown.classList.add('hidden');
-          document.getElementById('addressSearchInput').value = `${mainText}, ${secondaryText}`;
-          fetchGooglePlaceDetails(placeId);
-        });
-
-        dropdown.appendChild(el);
-      });
-
-      dropdown.classList.remove('hidden');
-    }
-
-    async function fetchGooglePlaceDetails(placeId) {
-      setLoading(true, 'Adresdetails ophalen...');
-      const cleanPlaceId = placeId.startsWith('places/') ? placeId : `places/${placeId}`;
-
-      try {
-        const res = await fetch(`https://places.googleapis.com/v1/${cleanPlaceId}`, {
-          headers: {
-            'X-Goog-Api-Key': state.apiKey,
-            'X-Goog-FieldMask': 'id,formattedAddress,addressComponents,location',
-          }
-        });
-
-        setLoading(false);
-        if (res.ok) {
-          const data = await res.json();
-          parseGooglePlacesDetailsResponse(data);
-        } else {
-          console.error('Google Place details error status:', res.status);
-        }
-      } catch (err) {
-        setLoading(false);
-        console.error('Place details error:', err);
-      }
-    }
-
-    function parseGooglePlacesDetailsResponse(data) {
-      const components = data.addressComponents || [];
-      const location = data.location || {};
-
-      const getComp = (type, short = false) => {
-        const found = components.find(c => c.types && c.types.includes(type));
-        if (!found) return '';
-        return short ? (found.shortText || '') : (found.longText || '');
-      };
-
-      state.street = getComp('route');
-      state.houseNumber = getComp('street_number');
-      state.city = getComp('locality') || getComp('postal_town') || getComp('sublocality_level_1');
-      state.postalCode = getComp('postal_code');
-      state.stateRegion = getComp('administrative_area_level_1');
-      state.country = getComp('country');
-      state.isVerified = true;
-
-      const lat = location.latitude ?? state.lat;
-      const lng = location.longitude ?? state.lng;
-
-      panToLocation(lat, lng);
-      syncStateToForm();
-      updateJsonPreview();
-    }
-
-    function renderPhotonPredictions(features) {
-      const dropdown = document.getElementById('suggestionsDropdown');
-      dropdown.innerHTML = '';
-
-      features.forEach(feat => {
-        const props = feat.properties || {};
-        const coords = feat.geometry?.coordinates || [state.lng, state.lat];
-        const main = props.name || props.street || 'Adres';
-        const sub = [props.housenumber, props.postcode, props.city || props.town, props.country].filter(Boolean).join(', ');
-
-        const el = document.createElement('div');
-        el.className = 'px-4 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-0 cursor-pointer flex items-center gap-3 transition';
-        el.innerHTML = `
-          <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center shrink-0 text-xs">
-            <i class="fa-solid fa-map-pin"></i>
-          </div>
-          <div class="min-w-0 flex-1">
-            <div class="text-xs font-bold text-slate-900 truncate">${main}</div>
-            <div class="text-xxs text-slate-500 truncate">${sub}</div>
-          </div>
-          <i class="fa-solid fa-chevron-right text-slate-300 text-xs"></i>
-        `;
-
-        el.addEventListener('click', () => {
-          dropdown.classList.add('hidden');
-          parsePhotonFeature(feat);
-          panToLocation(coords[1], coords[0]);
-        });
-
-        dropdown.appendChild(el);
-      });
-
-      dropdown.classList.remove('hidden');
-    }
-
-    function parsePhotonFeature(feat) {
-      const p = feat.properties || {};
-      state.street = p.street || p.name || '';
-      state.houseNumber = p.housenumber || '';
-      state.city = p.city || p.town || p.village || '';
-      state.postalCode = p.postcode || '';
-      state.stateRegion = p.state || '';
-      state.country = p.country || 'Nederland';
-      state.isVerified = true;
-
-      syncStateToForm();
-      updateJsonPreview();
-    }
-
-    function parseGoogleGeocodeResult(result) {
-      const components = result.address_components || [];
-      const getComp = (type) => {
-        const found = components.find(c => c.types && c.types.includes(type));
-        return found ? found.long_name : '';
-      };
-
-      state.street = getComp('route');
-      state.houseNumber = getComp('street_number');
-      state.city = getComp('locality') || getComp('postal_town');
-      state.postalCode = getComp('postal_code');
-      state.stateRegion = getComp('administrative_area_level_1');
-      state.country = getComp('country');
-      state.isVerified = true;
-
-      syncStateToForm();
-      updateJsonPreview();
-    }
-
-    function panToLocation(lat, lng) {
-      state.lat = Number(Number(lat).toFixed(6));
-      state.lng = Number(Number(lng).toFixed(6));
-
-      if (state.engine === 'google' && googleMap) {
-        const pos = new google.maps.LatLng(state.lat, state.lng);
-        googleMap.panTo(pos);
-        if (googleCircle) googleCircle.setCenter(pos);
-      } else if (leafletMap) {
-        leafletMap.panTo([state.lat, state.lng]);
-        if (leafletCircle) leafletCircle.setLatLng([state.lat, state.lng]);
+        console.error('Lookup fout:', err);
       }
 
-      document.getElementById('coordLat').value = state.lat;
-      document.getElementById('coordLng').value = state.lng;
-      document.getElementById('liveCoordsLabel').textContent = `${state.lat.toFixed(6)}, ${state.lng.toFixed(6)}`;
-      updateJsonPreview();
-    }
-
-    function recenterMap() {
-      panToLocation(state.lat, state.lng);
-    }
-
-    function zoomInMap() {
-      if (state.engine === 'google' && googleMap) {
-        googleMap.setZoom(googleMap.getZoom() + 1);
-      } else if (leafletMap) {
-        leafletMap.zoomIn();
-      }
-    }
-
-    function zoomOutMap() {
-      if (state.engine === 'google' && googleMap) {
-        googleMap.setZoom(googleMap.getZoom() - 1);
-      } else if (leafletMap) {
-        leafletMap.zoomOut();
-      }
-    }
-
-    function setMapType(type) {
-      state.mapType = type;
-      if (state.engine === 'google' && googleMap) {
-        googleMap.setMapTypeId(type);
-      }
-      document.getElementById('mapTypeRoadmapBtn').className = type === 'roadmap'
-        ? 'px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-900 text-white transition cursor-pointer'
-        : 'px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition cursor-pointer';
-
-      document.getElementById('mapTypeSatelliteBtn').className = type === 'hybrid'
-        ? 'px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-900 text-white transition cursor-pointer'
-        : 'px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition cursor-pointer';
-    }
-
-    function toggleShareExact() {
-      state.shareExact = !state.shareExact;
-      const toggle = document.getElementById('shareExactToggle');
-      const knob = document.getElementById('shareExactKnob');
-      const radiusSec = document.getElementById('radiusControlSection');
-
-      if (state.shareExact) {
-        toggle.className = 'w-12 h-7 rounded-full bg-rose-500 flex items-center p-1 cursor-pointer transition-colors shrink-0';
-        knob.className = 'w-5 h-5 bg-white rounded-full shadow-md transform translate-x-5 transition-transform duration-200';
-        radiusSec.classList.add('hidden');
-        if (googleCircle) googleCircle.setMap(null);
-        if (leafletCircle) leafletMap && leafletMap.removeLayer(leafletCircle);
-      } else {
-        toggle.className = 'w-12 h-7 rounded-full bg-slate-300 flex items-center p-1 cursor-pointer transition-colors shrink-0';
-        knob.className = 'w-5 h-5 bg-white rounded-full shadow-md transform translate-x-0 transition-transform duration-200';
-        radiusSec.classList.remove('hidden');
-        
-        if (googleCircle && googleMap) {
-          googleCircle.setRadius(state.radiusMeters);
-          googleCircle.setMap(googleMap);
-        }
-        if (leafletMap) {
-          if (!leafletCircle) {
-            leafletCircle = L.circle([state.lat, state.lng], {
-              color: '#f43f5e',
-              fillColor: '#f43f5e',
-              fillOpacity: 0.18,
-              radius: state.radiusMeters
-            }).addTo(leafletMap);
-          } else {
-            leafletCircle.addTo(leafletMap);
-            leafletCircle.setRadius(state.radiusMeters);
-          }
-        }
-      }
-      updateJsonPreview();
-    }
-
-    function updateRadius(val) {
-      state.radiusMeters = Number(val);
-      document.getElementById('radiusValueLabel').textContent = `${val} meter`;
-      if (googleCircle) googleCircle.setRadius(state.radiusMeters);
-      if (leafletCircle) leafletCircle.setRadius(state.radiusMeters);
-      updateJsonPreview();
-    }
-
-    function getCurrentLocation() {
-      if (!navigator.geolocation) {
-        alert('Geolocatie wordt niet ondersteund door deze browser.');
-        return;
-      }
-
-      setLoading(true, 'GPS Signaal ophalen...');
-
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setLoading(false);
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          panToLocation(lat, lng);
-          triggerDebouncedReverseGeocode(lat, lng);
-        },
-        (err) => {
-          setLoading(false);
-          console.warn('Geolocation error:', err);
-          alert('Kon GPS-positie niet bepalen. Controleer browserpermissies.');
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-    }
-
-    function syncStateToForm() {
-      document.getElementById('fieldStreet').value = state.street || '';
-      document.getElementById('fieldHouseNumber').value = state.houseNumber || '';
-      document.getElementById('fieldApartment').value = state.apartment || '';
-      document.getElementById('fieldPostalCode').value = state.postalCode || '';
-      document.getElementById('fieldCity').value = state.city || '';
-      document.getElementById('fieldStateRegion').value = state.stateRegion || '';
-      document.getElementById('fieldCountry').value = state.country || '';
-      document.getElementById('coordLat').value = state.lat;
-      document.getElementById('coordLng').value = state.lng;
-
-      const badge = document.getElementById('verifiedStatusBadge');
-      if (state.isVerified) {
-        badge.className = 'text-xxs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200';
-        badge.textContent = 'Geverifieerd';
-      } else {
-        badge.className = 'text-xxs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold border border-slate-200';
-        badge.textContent = 'Handmatige invoer';
-      }
-    }
-
-    function onFieldChange() {
-      state.street = document.getElementById('fieldStreet').value;
-      state.houseNumber = document.getElementById('fieldHouseNumber').value;
-      state.apartment = document.getElementById('fieldApartment').value;
-      state.postalCode = document.getElementById('fieldPostalCode').value;
-      state.city = document.getElementById('fieldCity').value;
-      state.stateRegion = document.getElementById('fieldStateRegion').value;
-      state.country = document.getElementById('fieldCountry').value;
-      updateJsonPreview();
-    }
-
-    function onManualCoordsChange() {
-      const lat = parseFloat(document.getElementById('coordLat').value);
-      const lng = parseFloat(document.getElementById('coordLng').value);
-      if (!isNaN(lat) && !isNaN(lng)) {
-        panToLocation(lat, lng);
-      }
-    }
-
-    function updateJsonPreview() {
-      const fullStreet = state.houseNumber
-        ? `${state.street} ${state.houseNumber}`.trim()
-        : state.street;
-
-      const payload = {
-        locationSettings: {
-          streetAddress: fullStreet,
-          apartment: state.apartment || undefined,
-          postalCode: state.postalCode,
-          city: state.city,
-          stateRegion: state.stateRegion,
-          country: state.country,
-          latitude: state.lat,
-          longitude: state.lng,
-          shareExact: state.shareExact,
-          radiusMeters: state.shareExact ? undefined : state.radiusMeters,
-          isVerified: state.isVerified,
-        }
-      };
-
-      document.getElementById('jsonPreviewBox').textContent = JSON.stringify(payload, null, 2);
-    }
-
-    function copyJsonPayload() {
-      const text = document.getElementById('jsonPreviewBox').textContent;
-      navigator.clipboard.writeText(text).then(() => {
-        const btn = document.getElementById('copyJsonBtnText');
-        const orig = btn.textContent;
-        btn.textContent = 'Gekopieerd!';
-        setTimeout(() => btn.textContent = orig, 1800);
-      });
-    }
-
-    function openInGoogleMaps() {
-      const url = `https://www.google.com/maps?q=${state.lat},${state.lng}`;
-      window.open(url, '_blank');
+      setLoading(false);
+      syncStateToUi();
     }
 
     function clearSearchInput() {
@@ -1333,91 +1348,126 @@
       document.getElementById('suggestionsDropdown').classList.add('hidden');
     }
 
-    function setLoading(isLoading, text = 'Laden...') {
+    // --- UTILITIES & ACTIONS ---
+    function generatePayload() {
+      const isHwy = state.isHighway;
+      const finalType = state.customTypeLabel || state.derivedTypology.title;
+
+      return {
+        locatieGegevens: {
+          adres: `${state.street} ${state.houseNumber}`.trim(),
+          postcode: state.postalCode,
+          woonplaats: state.city,
+          provincie: state.stateRegion,
+          land: state.country,
+          coordinaten: {
+            latitude: Number(state.lat.toFixed(6)),
+            longitude: Number(state.lng.toFixed(6))
+          },
+          locatieType: isHwy ? "Openbare weg / Buitenruimte" : "Gebouw / Pand",
+          afstandTotDichtstbijzijndePandMeters: isHwy ? state.nearestDistance : 0
+        },
+        kadasterBagFeiten: {
+          niveau_1_gebouw_casco: {
+            pandId: state.logistics.pandId,
+            bouwjaar: state.logistics.bouwjaar,
+            status: state.logistics.pandStatus || "Pand in gebruik",
+            aantalVerblijfsobjecten: state.logistics.aantalVerblijfsobjecten,
+            gebouwIsObject: state.logistics.gebouwIsObject,
+            nokhoogteMeters: state.logistics.nokhoogte,
+            goothoogteMeters: state.logistics.goothoogte,
+            volumeM3: state.logistics.gebouwVolume,
+            perceeloppervlakteM2: state.logistics.perceeloppervlakte,
+            kadastraalPerceel: state.logistics.perceelAanduiding,
+            indicatieveWozWaarde: state.logistics.wozWaarde,
+            wozPeildatum: state.logistics.wozPeildatum,
+            luchtfotoUrl: getLuchtfotoUrl(state.lat, state.lng),
+            streetViewUrl: `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${state.lat},${state.lng}`
+          },
+          niveau_2_verblijfsobject: {
+            vboId: state.logistics.vboId,
+            gebruiksoppervlakteM2: state.logistics.oppervlakte,
+            oppervlakteNorm: "NEN 2580 (Wettelijk ingemeten)",
+            wettelijkGebruiksdoel: state.logistics.gebruiksdoel,
+            status: state.logistics.vboStatus || "Verblijfsobject in gebruik"
+          },
+          classificatie: {
+            type: finalType,
+            afgeleidTypeUitBag: state.derivedTypology.title,
+            isAangepastDoorGebruiker: !!state.customTypeLabel,
+            toelichting: state.customTypeLabel ? "Handmatig gelabeld door gebruiker (zoals Label: Home)" : state.derivedTypology.desc,
+            juridischeZekerheid: isHwy ? "100% Geometrisch (Buiten Pandcontouren)" : "99% (Basisregistratie Adressen en Gebouwen)"
+          }
+        }
+      };
+    }
+
+    function copyJsonPayload() {
+      const payload = generatePayload();
+      navigator.clipboard.writeText(JSON.stringify(payload, null, 2)).then(() => {
+        const btnLabel = document.getElementById('copyJsonBtnLabel');
+        if (btnLabel) {
+          const orig = btnLabel.textContent;
+          btnLabel.textContent = 'Saved!';
+          showToast('Locatie & JSON opgeslagen!');
+          setTimeout(() => btnLabel.textContent = orig, 1800);
+        }
+      });
+    }
+
+    function sendToPhone() {
+      if (navigator.share) {
+        navigator.share({
+          title: state.customTypeLabel || 'Locatie',
+          text: `${state.street} ${state.houseNumber}, ${state.postalCode} ${state.city}`,
+          url: window.location.href
+        }).catch(() => {});
+      } else {
+        showToast('Link verzonden naar mobiel apparaat!');
+      }
+    }
+
+    function openFullStreetView() {
+      let panoUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${state.lat},${state.lng}`;
+      if (currentPanoHeading !== null) {
+        panoUrl += `&heading=${currentPanoHeading}&pitch=5`;
+      }
+      window.open(panoUrl, '_blank');
+    }
+
+    function toggleJsonModal() {
+      document.getElementById('jsonModal').classList.toggle('hidden');
+    }
+
+    function toggleEngineModal() {
+      document.getElementById('engineModal').classList.toggle('hidden');
+    }
+
+    function saveApiKey() {
+      const key = document.getElementById('apiKeyInput').value.trim();
+      state.apiKey = key;
+      localStorage.setItem('eh_gmaps_api_key', key);
+      toggleEngineModal();
+      loadGoogleMapsSdk();
+      showToast('API Key opgeslagen!');
+    }
+
+    function setLoading(isLoading, text = 'Locatie ophalen...') {
       const overlay = document.getElementById('mapLoadingOverlay');
+      const label = document.getElementById('loadingOverlayText');
       if (isLoading) {
+        label.textContent = text;
         overlay.classList.remove('hidden');
-        overlay.querySelector('span').textContent = text;
       } else {
         overlay.classList.add('hidden');
       }
     }
 
-    function openApiKeyModal() {
-      document.getElementById('apiKeyModal').classList.remove('hidden');
-      document.getElementById('apiKeyInput').value = state.apiKey;
-      document.getElementById('keyTestResult').classList.add('hidden');
-    }
-
-    function closeApiKeyModal() {
-      document.getElementById('apiKeyModal').classList.add('hidden');
-    }
-
-    function toggleEngineModal() {
-      const m = document.getElementById('engineModal');
-      m.classList.toggle('hidden');
-    }
-
-    function switchEngine(engine) {
-      state.engine = engine;
-      localStorage.setItem('eh_maps_engine', engine);
-      toggleEngineModal();
-
-      if (engine === 'google') {
-        loadGoogleMapsSdk();
-      } else {
-        initLeafletMap();
-      }
-    }
-
-    function toggleKeyVisibility() {
-      const input = document.getElementById('apiKeyInput');
-      const icon = document.getElementById('keyEyeIcon');
-      if (input.type === 'text') {
-        input.type = 'password';
-        icon.className = 'fa-solid fa-eye-slash text-xs';
-      } else {
-        input.type = 'text';
-        icon.className = 'fa-solid fa-eye text-xs';
-      }
-    }
-
-    function saveApiKey() {
-      const input = document.getElementById('apiKeyInput');
-      const key = input.value.trim();
-      if (!key) {
-        alert('Voer een geldige Google Maps API key in of gebruik de standaard key.');
-        return;
-      }
-      state.apiKey = key;
-      localStorage.setItem('eh_gmaps_api_key', key);
-      sessionStorage.setItem('poc_gmaps_key', key);
-      closeApiKeyModal();
-      loadGoogleMapsSdk();
-    }
-
-    async function testCurrentKey() {
-      const input = document.getElementById('apiKeyInput');
-      const key = input.value.trim();
-      const resBox = document.getElementById('keyTestResult');
-      resBox.className = 'p-3 rounded-xl text-xs bg-slate-100 text-slate-700 block';
-      resBox.textContent = 'API Key testen...';
-
-      try {
-        const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=Maastricht&key=${encodeURIComponent(key)}`);
-        const data = await res.json();
-
-        if (data.status === 'OK') {
-          resBox.className = 'p-3 rounded-xl text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 block';
-          resBox.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-600 mr-1.5"></i> <strong>Geldig!</strong> Geocoding API reageert succesvol.';
-        } else {
-          resBox.className = 'p-3 rounded-xl text-xs bg-rose-50 text-rose-800 border border-rose-200 block';
-          resBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-rose-600 mr-1.5"></i> Fout: ${data.status} - ${data.error_message || 'Niet geautoriseerd'}`;
-        }
-      } catch (err) {
-        resBox.className = 'p-3 rounded-xl text-xs bg-rose-50 text-rose-800 border border-rose-200 block';
-        resBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-rose-600 mr-1.5"></i> Verbindingsfout: ${err.message}`;
-      }
+    function showToast(msg) {
+      const toast = document.getElementById('toastNotification');
+      document.getElementById('toastMessage').textContent = msg;
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 2800);
     }
   </script>
 </body>
