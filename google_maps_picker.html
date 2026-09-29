@@ -376,8 +376,8 @@
         <!-- 6. PHOTOS & SATELLITE SECTION -->
         <div class="p-5 border-t border-slate-100">
           <div class="flex items-center justify-between mb-2.5">
-            <div class="text-sm font-medium text-google-dark">Foto's & Satelliet</div>
-            <span class="text-xxs text-google-gray font-normal">Google Maps Satelliet</span>
+            <div class="text-sm font-medium text-google-dark">Foto's</div>
+            <span class="text-xxs text-google-gray font-normal">Street View & Satelliet</span>
           </div>
           <div class="grid grid-cols-2 gap-2.5">
             <!-- Street View Mini -->
@@ -393,20 +393,12 @@
                 <span>Street View</span>
               </div>
             </div>
-            <!-- Google Satellite & Parcel Mini -->
-            <div class="relative rounded-lg overflow-hidden h-28 bg-slate-900 group cursor-pointer shadow-2xs border border-teal-600/30" onclick="showParcelTopDown()" title="Toon Google Satelliet & Perceel van bovenaf">
-              <div class="w-full h-full bg-gradient-to-br from-slate-900 via-teal-950 to-slate-900 flex flex-col items-center justify-center p-3 text-center group-hover:scale-105 transition-transform duration-300">
-                <i class="fa-solid fa-satellite text-2xl text-teal-300 mb-1.5"></i>
-                <span class="text-xs font-semibold text-white">Google Satelliet</span>
-                <span class="text-xxs text-teal-200 mt-0.5">Bovenaanzicht & Perceel</span>
-              </div>
-              <div class="absolute bottom-1.5 left-1.5 bg-black/65 backdrop-blur-xs text-white px-2 py-0.5 rounded-full text-xxs font-medium flex items-center gap-1 shadow-md">
-                <i class="fa-solid fa-layer-group text-xxs text-teal-300"></i>
-                <span>411 m² Perceel</span>
-              </div>
-              <div class="absolute top-1.5 right-1.5 bg-[#007b83] text-white px-1.5 py-0.5 rounded text-xxs font-medium flex items-center gap-1">
-                <i class="fa-solid fa-magnifying-glass-plus text-xxs"></i>
-                <span>Zoom</span>
+            <!-- Google Satellite Mini -->
+            <div class="relative rounded-lg overflow-hidden h-28 bg-slate-900 group cursor-pointer shadow-2xs" onclick="showParcelTopDown()" title="Toon Google Satelliet & Perceel">
+              <div id="miniSatelliteMap" class="w-full h-full pointer-events-none"></div>
+              <div class="absolute bottom-1.5 left-1.5 bg-black/65 backdrop-blur-xs text-white px-2 py-0.5 rounded-full text-xxs font-medium flex items-center gap-1 shadow-md pointer-events-none z-10">
+                <i class="fa-solid fa-satellite text-xxs"></i>
+                <span>Satelliet</span>
               </div>
             </div>
           </div>
@@ -559,6 +551,8 @@
     let googleCircle = null;
     let geocoderService = null;
     let parcelPolygon = null;
+    let miniSatMap = null;
+    let miniParcelPolygon = null;
 
     // Exact Kadaster DKK perceelcontour voor Rijksweg 153B (Gronsveld B 2882)
     const INITIAL_PARCEL_PATH = [
@@ -632,6 +626,8 @@
           center: center,
           zoom: state.zoom,
           mapTypeId: 'roadmap',
+          renderingType: google.maps.RenderingType ? google.maps.RenderingType.VECTOR : 'VECTOR',
+          mapId: 'DEMO_MAP_ID',
           disableDefaultUI: false,
           mapTypeControl: true,
           mapTypeControlOptions: {
@@ -694,6 +690,7 @@
 
         // Meteen perceel omkaderen op de Google Map
         drawParcelPolygon(INITIAL_PARCEL_PATH);
+        initMiniSatMap();
 
         setLoading(false);
       } catch (err) {
@@ -711,6 +708,7 @@
 
       if (googleMarker) googleMarker.setPosition({ lat: numLat, lng: numLng });
       if (googleCircle) googleCircle.setCenter({ lat: numLat, lng: numLng });
+      if (miniSatMap) miniSatMap.setCenter({ lat: numLat, lng: numLng });
 
       if (panMap && googleMap) {
         googleMap.panTo({ lat: numLat, lng: numLng });
@@ -1137,10 +1135,10 @@
       parcelPolygon = new google.maps.Polygon({
         paths: path,
         strokeColor: '#007b83',
-        strokeOpacity: 0.95,
-        strokeWeight: 2.5,
+        strokeOpacity: 0.85,
+        strokeWeight: 1.0,
         fillColor: '#007b83',
-        fillOpacity: 0.22,
+        fillOpacity: 0.12,
         map: googleMap,
         zIndex: 10
       });
@@ -1148,6 +1146,50 @@
       parcelPolygon.addListener('click', () => {
         showParcelTopDown();
       });
+
+      // Werk ook de mini satelliet kaart bij met dezelfde dunne contour
+      if (miniSatMap) {
+        if (miniParcelPolygon) miniParcelPolygon.setMap(null);
+        miniParcelPolygon = new google.maps.Polygon({
+          paths: path,
+          strokeColor: '#007b83',
+          strokeOpacity: 0.9,
+          strokeWeight: 1.0,
+          fillColor: '#007b83',
+          fillOpacity: 0.15,
+          map: miniSatMap
+        });
+      }
+    }
+
+    function initMiniSatMap() {
+      const el = document.getElementById('miniSatelliteMap');
+      if (!el || !window.google || !google.maps) return;
+      try {
+        miniSatMap = new google.maps.Map(el, {
+          center: { lat: Number(state.lat), lng: Number(state.lng) },
+          zoom: 19,
+          mapTypeId: 'satellite',
+          disableDefaultUI: true,
+          gestureHandling: 'none',
+          keyboardShortcuts: false,
+          clickableIcons: false
+        });
+
+        if (INITIAL_PARCEL_PATH && INITIAL_PARCEL_PATH.length > 0) {
+          miniParcelPolygon = new google.maps.Polygon({
+            paths: INITIAL_PARCEL_PATH,
+            strokeColor: '#007b83',
+            strokeOpacity: 0.9,
+            strokeWeight: 1.0,
+            fillColor: '#007b83',
+            fillOpacity: 0.15,
+            map: miniSatMap
+          });
+        }
+      } catch (e) {
+        console.warn('Mini satelliet initialisatie mislukt:', e);
+      }
     }
 
     function updateParcelPolygonFromGeoJson(geometry) {
