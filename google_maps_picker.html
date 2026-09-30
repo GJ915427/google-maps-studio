@@ -122,10 +122,19 @@
           <span class="text-xs font-bold">BG</span>
           <span class="text-[9px] opacity-90 -mt-0.5">Vloer</span>
         </button>
+        <button 
+          id="btnFloorSection" 
+          onclick="setFloorplanEtage('section')" 
+          class="fp-floor-btn w-11 h-11 flex flex-col items-center justify-center border-t border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer text-slate-600" 
+          title="Zijaanzicht & Doorsnede (Profiel)"
+        >
+          <i class="fa-solid fa-layer-group text-xs text-slate-500"></i>
+          <span class="text-[9px] text-slate-400 -mt-0.5">Profiel</span>
+        </button>
       </div>
 
       <!-- Google Street View Compass Widget (Right Side, Under Floor Pillar) -->
-      <div class="absolute right-4 top-60 z-20 flex flex-col items-center gap-1">
+      <div id="fpCompassContainer" class="absolute right-4 top-[272px] z-20 flex flex-col items-center gap-1">
         <button 
           id="btnFpCompass" 
           onclick="toggleFloorplanOrientation()" 
@@ -1684,41 +1693,68 @@
     function setFloorplanEtage(etageIndex) {
       currentFloorplanEtage = etageIndex;
       // Update floor button styles
-      [0, 1, 2].forEach(idx => {
-        const btn = document.getElementById(`btnFloor${idx}`);
+      [0, 1, 2, 'section'].forEach(idx => {
+        const btn = document.getElementById(idx === 'section' ? 'btnFloorSection' : `btnFloor${idx}`);
         if (!btn) return;
+        const isBrdTop = (idx === 'section');
         if (idx === etageIndex) {
-          btn.className = 'fp-floor-btn w-11 h-11 flex flex-col items-center justify-center bg-google-blue text-white shadow-xs cursor-pointer';
+          btn.className = `fp-floor-btn w-11 h-11 flex flex-col items-center justify-center bg-google-blue text-white shadow-xs cursor-pointer ${isBrdTop ? 'border-t border-slate-100' : ''}`;
+          const icon = btn.querySelector('i');
+          if (icon) icon.className = 'fa-solid fa-layer-group text-xs text-white';
+          const sub = btn.querySelector('span:last-child');
+          if (sub) sub.className = 'text-[9px] opacity-90 -mt-0.5';
         } else {
-          btn.className = 'fp-floor-btn w-11 h-11 flex flex-col items-center justify-center border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer text-slate-600';
+          btn.className = `fp-floor-btn w-11 h-11 flex flex-col items-center justify-center ${isBrdTop ? 'border-t' : 'border-b'} border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer text-slate-600`;
+          const icon = btn.querySelector('i');
+          if (icon) icon.className = 'fa-solid fa-layer-group text-xs text-slate-500';
+          const sub = btn.querySelector('span:last-child');
+          if (sub) sub.className = 'text-[9px] text-slate-400 -mt-0.5';
         }
       });
 
-      // Update disclaimer badge & titles
+      // Update disclaimer badge, compass & titles
       const badge = document.getElementById('fpFloorBadge');
       const badgeIcon = document.getElementById('fpFloorBadgeIcon');
       const badgeText = document.getElementById('fpFloorBadgeText');
       const titleEl = document.getElementById('fpActiveFloorTitle');
+      const compassBox = document.getElementById('fpCompassContainer');
+      const dimCard = document.getElementById('chkInnerDims')?.closest('.bg-white\\/95');
 
       if (etageIndex === 0) {
         if (badge) badge.classList.add('hidden');
         if (titleEl) titleEl.textContent = 'Begane grond (Feitelijk)';
+        if (compassBox) compassBox.classList.remove('hidden');
+        if (dimCard) dimCard.classList.remove('hidden');
       } else if (etageIndex === 1) {
         if (badge) {
           badge.classList.remove('hidden');
           badge.className = 'text-xxs font-medium p-2 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 flex items-start gap-2';
         }
         if (badgeIcon) badgeIcon.className = 'fa-solid fa-circle-info text-amber-600 text-xs mt-0.5';
-        if (badgeText) badgeText.textContent = 'Afgeleide concepttekening • Indicatieve weergave o.b.v. hoogte & woonoppervlak';
+        if (badgeText) badgeText.textContent = 'Afgeleid concept • Hoofdvolume straatzijde (61 m² binnenvloer o.b.v. BAG en houten balklaag)';
         if (titleEl) titleEl.textContent = '1e Verdieping (Concept)';
-      } else {
+        if (compassBox) compassBox.classList.remove('hidden');
+        if (dimCard) dimCard.classList.remove('hidden');
+      } else if (etageIndex === 2) {
         if (badge) {
           badge.classList.remove('hidden');
           badge.className = 'text-xxs font-medium p-2 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 flex items-start gap-2';
         }
         if (badgeIcon) badgeIcon.className = 'fa-solid fa-circle-info text-amber-600 text-xs mt-0.5';
-        if (badgeText) badgeText.textContent = 'Afgeleide concepttekening • Indicatieve weergave kap / zolderruimte';
+        if (badgeText) badgeText.textContent = 'Afgeleid concept • Kap / zolder (NEN 2580 stahoogte ≥ 1.50m tussen dakgoten)';
         if (titleEl) titleEl.textContent = 'Kap / Zolder (Concept)';
+        if (compassBox) compassBox.classList.remove('hidden');
+        if (dimCard) dimCard.classList.remove('hidden');
+      } else if (etageIndex === 'section') {
+        if (badge) {
+          badge.classList.remove('hidden');
+          badge.className = 'text-xxs font-medium p-2 rounded-xl bg-sky-50 text-sky-900 border border-sky-200 flex items-start gap-2';
+        }
+        if (badgeIcon) badgeIcon.className = 'fa-solid fa-layer-group text-sky-600 text-xs mt-0.5';
+        if (badgeText) badgeText.textContent = 'Architectonisch gevelprofiel • Afgeleid uit BAG nokhoogte, goothoogte, bouwjaar en binnenoppervlak';
+        if (titleEl) titleEl.textContent = 'Zijaanzicht & Doorsnede (Profiel)';
+        if (compassBox) compassBox.classList.add('hidden');
+        if (dimCard) dimCard.classList.add('hidden');
       }
 
       renderFloorplan(currentFloorplanThickness || 0.28);
@@ -1787,7 +1823,7 @@
       return res;
     }
 
-    function computeFloorGeometry(basePoints, frontIdx, etageIndex, totalWoonoppervlakte) {
+    function computeFloorGeometry(basePoints, frontIdx, etageIndex, totalWoonoppervlakte, wallThickness = 0.28) {
       if (etageIndex === 0 || !basePoints || basePoints.length < 3) {
         return basePoints.map(p => ({ ...p }));
       }
@@ -1800,7 +1836,7 @@
       }
       bgFootprintArea = Math.abs(bgFootprintArea) / 2;
 
-      // Schatting benutbare binnenvloer begane grond (ca. 88% van de gevelomtrek)
+      // Netto binnenoppervlakte Begane Grond (binnenmaten na aftrek spouwdikte)
       const approxBgInner = bgFootprintArea * 0.88;
       const upperRemainingArea = (totalWoonoppervlakte && totalWoonoppervlakte > 20) 
         ? Math.max(0, totalWoonoppervlakte - approxBgInner)
@@ -1808,79 +1844,256 @@
 
       const floorRatio = upperRemainingArea / approxBgInner;
 
-      // 1e VERDIEPING: Cognitieve Bouwkundige Redenering
-      if (etageIndex === 1) {
-        // Geval A: Eenvoudige rechthoek of volledige verdieping (rijtjeswoning / 2 volledige lagen)
-        if (n <= 4 || floorRatio >= 0.85) {
-          return basePoints.map(p => ({ ...p }));
-        }
-
-        // Geval B: Samengesteld pand met aanbouw (hoofdvolume aan straatzijde, zoals Rijksweg 153b)
-        if (frontIdx < 0 || frontIdx >= n) frontIdx = 0;
-        const pA = basePoints[frontIdx];
-        const pB = basePoints[(frontIdx + 1) % n];
-        const vx = pB.x - pA.x, vy = pB.y - pA.y;
-        const fLen = Math.hypot(vx, vy);
-
-        const pPrev = basePoints[(frontIdx - 1 + n) % n];
-        const leftLen = Math.hypot(pPrev.x - pA.x, pPrev.y - pA.y);
-
-        const pNext2 = basePoints[(frontIdx + 2) % n];
-        const rightLen = Math.hypot(pNext2.x - pB.x, pNext2.y - pB.y);
-
-        // Als beide hoeken een natuurlijke bouwnis vormen tussen 4.5m en 10.0m:
-        if (leftLen >= 4.5 && leftLen <= 10.0 && rightLen >= 4.5 && rightLen <= 10.0) {
-          return [
-            { x: pA.x, y: pA.y },
-            { x: pPrev.x, y: pPrev.y },
-            { x: pNext2.x, y: pNext2.y },
-            { x: pB.x, y: pB.y }
-          ];
-        }
-
-        let depth = 6.0;
-        if (leftLen >= 4.5 && leftLen <= 10.0) depth = leftLen;
-        else if (rightLen >= 4.5 && rightLen <= 10.0) depth = rightLen;
-        else if (upperRemainingArea > 20 && fLen > 2) depth = Math.max(5.0, Math.min(10.0, upperRemainingArea / fLen));
-
-        const ux = vx / fLen, uy = vy / fLen;
-        const nx1 = -uy, ny1 = ux;
-        const cx = basePoints.reduce((s, p) => s + p.x, 0) / n;
-        const cy = basePoints.reduce((s, p) => s + p.y, 0) / n;
-        const dot1 = (cx - (pA.x + pB.x)/2) * nx1 + (cy - (pA.y + pB.y)/2) * ny1;
-        const inNx = dot1 >= 0 ? nx1 : -nx1;
-        const inNy = dot1 >= 0 ? ny1 : -ny1;
-
-        return [
-          { x: pA.x, y: pA.y },
-          { x: pA.x + inNx * depth, y: pA.y + inNy * depth },
-          { x: pB.x + inNx * depth, y: pB.y + inNy * depth },
-          { x: pB.x, y: pB.y }
-        ];
+      // Eenvoudige rechthoek of volledige 2e bouwlaag (rijtjeswoning / 2 volledige verdiepingen)
+      if (n <= 4 || floorRatio >= 0.85) {
+        return basePoints.map(p => ({ ...p }));
       }
 
-      // 2e VERDIEPING / KAP: NEN 2580 Stahoogte onder schuin dak (1.50m lijn)
-      if (etageIndex === 2) {
-        const f1 = computeFloorGeometry(basePoints, frontIdx, 1, totalWoonoppervlakte);
-        if (f1.length === 4) {
-          const p1 = f1[0], p2 = f1[1], p3 = f1[2], p4 = f1[3];
-          const inset = 1.35; // 1.35m inspringing vanaf de gootzijde
-          const vDepthX = (p2.x - p1.x), vDepthY = (p2.y - p1.y);
-          const dLen = Math.hypot(vDepthX, vDepthY);
-          if (dLen > inset * 2.2) {
-            const uDx = vDepthX / dLen, uDy = vDepthY / dLen;
-            return [
-              { x: p1.x + uDx * inset, y: p1.y + uDy * inset },
-              { x: p2.x - uDx * inset, y: p2.y - uDy * inset },
-              { x: p3.x - uDx * inset, y: p3.y - uDy * inset },
-              { x: p4.x + uDx * inset, y: p4.y + uDy * inset }
-            ];
-          }
-        }
-        return f1.map(p => ({ ...p }));
+      // Samengesteld pand met 1-laags aanbouw (hoofdvolume aan straatzijde, zoals Rijksweg 153b)
+      if (frontIdx < 0 || frontIdx >= n) frontIdx = 0;
+      const pA = basePoints[frontIdx];
+      const pB = basePoints[(frontIdx + 1) % n];
+      const vx = pB.x - pA.x, vy = pB.y - pA.y;
+      const fLen = Math.hypot(vx, vy);
+
+      // Binnenbreedte van het hoofdvolume
+      const wInner = Math.max(2.0, fLen - 2 * wallThickness);
+      // Benodigde binnendiepte van het hoofdvolume om het resterende BAG-woonoppervlak te vullen:
+      const dInner = (upperRemainingArea > 15 && wInner > 2) ? (upperRemainingArea / wInner) : 5.44;
+      
+      // Buitenwerks diepte (inclusief 2x spouwmuur):
+      let depth = dInner + 2 * wallThickness;
+
+      // Bouwhistorische begrenzing (Nederlandse typologie, houten balkoverspanning max ca. 5.5 - 6.5 meter vóór 1945)
+      depth = Math.max(5.0, Math.min(8.0, depth));
+
+      const pPrev = basePoints[(frontIdx - 1 + n) % n];
+      const leftLen = Math.hypot(pPrev.x - pA.x, pPrev.y - pA.y);
+      const pNext2 = basePoints[(frontIdx + 2) % n];
+      const rightLen = Math.hypot(pNext2.x - pB.x, pNext2.y - pB.y);
+
+      // Als een van de aangrenzende gevels exact de bouwsnede vormt (tussen 5.0m en 7.5m):
+      if (leftLen >= 5.0 && leftLen <= 7.5 && Math.abs(leftLen - depth) < 1.2) {
+        depth = leftLen;
+      } else if (rightLen >= 5.0 && rightLen <= 7.5 && Math.abs(rightLen - depth) < 1.2) {
+        depth = rightLen;
       }
 
-      return basePoints.map(p => ({ ...p }));
+      const ux = vx / fLen, uy = vy / fLen;
+      const nx1 = -uy, ny1 = ux;
+      const cx = basePoints.reduce((s, p) => s + p.x, 0) / n;
+      const cy = basePoints.reduce((s, p) => s + p.y, 0) / n;
+      const dot1 = (cx - (pA.x + pB.x)/2) * nx1 + (cy - (pA.y + pB.y)/2) * ny1;
+      const inNx = dot1 >= 0 ? nx1 : -nx1;
+      const inNy = dot1 >= 0 ? ny1 : -ny1;
+
+      // 4-hoekig zuiver hoofdvolume langs de straatgevel
+      return [
+        { x: pA.x, y: pA.y },
+        { x: pA.x + inNx * depth, y: pA.y + inNy * depth },
+        { x: pB.x + inNx * depth, y: pB.y + inNy * depth },
+        { x: pB.x, y: pB.y }
+      ];
+    }
+
+    function renderFloorplanSection(wrapper, basePts, frontWallIdx, totalWoonopp) {
+      const nokH = (state.logistics.nokhoogte && state.logistics.nokhoogte > 5) ? state.logistics.nokhoogte : 8.2;
+      const gootH = (state.logistics.goothoogte && state.logistics.goothoogte > 3) ? state.logistics.goothoogte : 5.6;
+      const verdH = 2.8;
+      const platH = 3.0;
+
+      // Diepte van hoofdvolume en aanbouw
+      const f1 = computeFloorGeometry(basePts, frontWallIdx, 1, totalWoonopp);
+      let depthMain = 6.0;
+      if (f1 && f1.length === 4) {
+        depthMain = Math.hypot(f1[1].x - f1[0].x, f1[1].y - f1[0].y);
+      }
+      depthMain = Math.max(5.0, Math.min(8.0, depthMain));
+
+      // Bepaal totale diepte van het pand langs de voorgevelnormaal
+      const baseN = basePts.length;
+      let depthExt = 7.0;
+      if (baseN > 4) {
+        let maxD = 0;
+        const pA = basePts[frontWallIdx];
+        const pB = basePts[(frontWallIdx + 1) % baseN];
+        const fvx = pB.x - pA.x, fvy = pB.y - pA.y;
+        const flen = Math.hypot(fvx, fvy);
+        const fnx = fvy / flen, fny = -fvx / flen;
+        for (let i = 0; i < baseN; i++) {
+          const d = Math.abs((basePts[i].x - pA.x) * fnx + (basePts[i].y - pA.y) * fny);
+          if (d > maxD) maxD = d;
+        }
+        if (maxD > depthMain + 1.5) {
+          depthExt = +(maxD - depthMain).toFixed(1);
+        }
+      } else {
+        depthExt = 0;
+      }
+
+      const totalDepth = depthMain + depthExt;
+      const yMaaiveld = 10.0;
+      const yNok = yMaaiveld - nokH;
+      const yGoot = yMaaiveld - gootH;
+      const yVerd = yMaaiveld - verdH;
+      const yPlat = yMaaiveld - platH;
+      const yStahoogte = yGoot - 1.5;
+
+      // Schuinte dak en NEN 2580 snede (bij 1.50m stahoogte)
+      const slope = (nokH - gootH) / (depthMain / 2.0);
+      const dxSta = Math.max(0.6, Math.min(depthMain / 2.2, 1.5 / slope));
+      const xSta1 = dxSta;
+      const xSta2 = depthMain - dxSta;
+      const usableAtticWidth = +(xSta2 - xSta1).toFixed(2);
+
+      const hasExt = depthExt > 1.0;
+      const xExtEnd = depthMain + depthExt;
+
+      wrapper.innerHTML = `
+        <svg viewBox="-4.2 0.0 21.5 12.2" class="w-full h-full" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <pattern id="secGroundHatch" width="0.6" height="0.6" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+              <line x1="0" y1="0" x2="0" y2="0.6" stroke="#cbd5e1" stroke-width="0.08" />
+            </pattern>
+            <pattern id="secRoofHatch" width="0.3" height="0.3" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+              <line x1="0" y1="0" x2="0" y2="0.3" stroke="#e2e8f0" stroke-width="0.06" />
+            </pattern>
+            <pattern id="secGrid" width="1" height="1" patternUnits="userSpaceOnUse">
+              <path d="M 1 0 L 0 0 0 1" fill="none" stroke="#f1f5f9" stroke-width="0.03" />
+            </pattern>
+            <marker id="secDotBlue" markerWidth="4" markerHeight="4" refX="2" refY="2">
+              <circle cx="2" cy="2" r="1.3" fill="#0284c7" />
+            </marker>
+          </defs>
+
+          <!-- 1. Achtergrond raster (onderste laag) -->
+          <rect x="-4.2" y="0.0" width="21.5" height="12.2" fill="url(#secGrid)" />
+
+          <!-- Grond / Maaiveld onder peil -->
+          <rect x="-3.8" y="${yMaaiveld.toFixed(2)}" width="20.5" height="1.8" fill="url(#secGroundHatch)" opacity="0.45" />
+          <line x1="-3.8" y1="${yMaaiveld.toFixed(2)}" x2="16.5" y2="${yMaaiveld.toFixed(2)}" stroke="#475569" stroke-width="0.08" />
+
+          <!-- Straat- en tuinlabels -->
+          <text x="-1.8" y="10.55" fill="#64748b" font-size="0.36" font-family="sans-serif" font-weight="bold" text-anchor="middle">◀ STRAAT (VOORGEVEL)</text>
+          <text x="${(xExtEnd + 1.8).toFixed(2)}" y="10.55" fill="#64748b" font-size="0.36" font-family="sans-serif" font-weight="bold" text-anchor="middle">ACHTERTUIN ▶</text>
+
+          <!-- 2. HOOFDVOLUME (DOORSNEDE) -->
+          <!-- Zadeldak binnenruimte -->
+          <polygon points="0,${yGoot.toFixed(2)} ${(depthMain/2).toFixed(2)},${yNok.toFixed(2)} ${depthMain.toFixed(2)},${yGoot.toFixed(2)}" fill="#f8fafc" stroke="#0f172a" stroke-width="0.08" stroke-linejoin="round" />
+          
+          <!-- Buitenste dakpannenlaag -->
+          <polyline points="-0.25,${(yGoot + 0.15).toFixed(2)} ${(depthMain/2).toFixed(2)},${(yNok - 0.15).toFixed(2)} ${(depthMain + 0.25).toFixed(2)},${(yGoot + 0.15).toFixed(2)}" fill="none" stroke="#b45309" stroke-width="0.16" stroke-linecap="round" stroke-linejoin="round" />
+
+          <!-- 1.50m Stahoogtelijn onder kap (NEN 2580 Woonoppervlak) -->
+          <rect x="${xSta1.toFixed(2)}" y="${yStahoogte.toFixed(2)}" width="${usableAtticWidth.toFixed(2)}" height="1.50" fill="#eff6ff" opacity="0.85" />
+          <line x1="${xSta1.toFixed(2)}" y1="${yStahoogte.toFixed(2)}" x2="${xSta2.toFixed(2)}" y2="${yStahoogte.toFixed(2)}" stroke="#0284c7" stroke-width="0.05" stroke-dasharray="0.15,0.1" />
+          <line x1="${xSta1.toFixed(2)}" y1="${yStahoogte.toFixed(2)}" x2="${xSta1.toFixed(2)}" y2="${yGoot.toFixed(2)}" stroke="#0284c7" stroke-width="0.03" stroke-dasharray="0.1,0.1" opacity="0.6" />
+          <line x1="${xSta2.toFixed(2)}" y1="${yStahoogte.toFixed(2)}" x2="${xSta2.toFixed(2)}" y2="${yGoot.toFixed(2)}" stroke="#0284c7" stroke-width="0.03" stroke-dasharray="0.1,0.1" opacity="0.6" />
+
+          <!-- Knieschot arceringen (< 1.50m) -->
+          <polygon points="0.28,${yGoot.toFixed(2)} ${xSta1.toFixed(2)},${yStahoogte.toFixed(2)} ${xSta1.toFixed(2)},${yGoot.toFixed(2)}" fill="url(#secRoofHatch)" opacity="0.6" />
+          <polygon points="${(depthMain - 0.28).toFixed(2)},${yGoot.toFixed(2)} ${xSta2.toFixed(2)},${yStahoogte.toFixed(2)} ${xSta2.toFixed(2)},${yGoot.toFixed(2)}" fill="url(#secRoofHatch)" opacity="0.6" />
+
+          <!-- Zolderruimte teksten -->
+          <text x="${(depthMain/2).toFixed(2)}" y="${(yStahoogte + 0.95).toFixed(2)}" fill="#0369a1" font-size="0.34" font-family="sans-serif" font-weight="bold" text-anchor="middle">Zolder (h ≥ 1.50m • Woonoppervlak)</text>
+          <text x="${(depthMain/2).toFixed(2)}" y="${(yStahoogte - 0.22).toFixed(2)}" fill="#0284c7" font-size="0.26" font-family="sans-serif" font-weight="bold" text-anchor="middle">1.50m Stahoogtelijn (NEN 2580)</text>
+          <text x="${(xSta1 * 0.55).toFixed(2)}" y="${(yGoot - 0.2).toFixed(2)}" fill="#94a3b8" font-size="0.22" font-family="sans-serif" text-anchor="middle">Knieschot</text>
+          <text x="${(depthMain - xSta1 * 0.55).toFixed(2)}" y="${(yGoot - 0.2).toFixed(2)}" fill="#94a3b8" font-size="0.22" font-family="sans-serif" text-anchor="middle">Knieschot</text>
+
+          <!-- 3. AANBOUW MET PLAT DAK (indien aanwezig) -->
+          ${hasExt ? `
+            <rect x="${depthMain.toFixed(2)}" y="${yPlat.toFixed(2)}" width="${depthExt.toFixed(2)}" height="${platH.toFixed(2)}" fill="#ffffff" stroke="none" />
+            <rect x="${depthMain.toFixed(2)}" y="${(yPlat - 0.22).toFixed(2)}" width="${depthExt.toFixed(2)}" height="0.25" fill="#475569" stroke="#0f172a" stroke-width="0.04" />
+            <rect x="${(xExtEnd - 0.15).toFixed(2)}" y="${(yPlat - 0.35).toFixed(2)}" width="0.30" height="0.38" fill="#334155" stroke="#0f172a" stroke-width="0.03" />
+            <text x="${(depthMain + depthExt/2).toFixed(2)}" y="${(yPlat - 0.50).toFixed(2)}" fill="#475569" font-size="0.32" font-family="sans-serif" font-weight="bold" text-anchor="middle">1-Laags Plat Dak Aanbouw (BG)</text>
+          ` : ''}
+
+          <!-- 4. VLOEREN (DOORSNEDE) -->
+          <!-- BG vloer -->
+          <rect x="0.28" y="9.82" width="${(totalDepth - 0.56).toFixed(2)}" height="0.18" fill="#cbd5e1" />
+          <!-- 1e Verdiepingsvloer hoofdhuis -->
+          <rect x="0.28" y="${(yVerd - 0.18).toFixed(2)}" width="${(depthMain - 0.56).toFixed(2)}" height="0.18" fill="#94a3b8" stroke="#64748b" stroke-width="0.02" />
+          <!-- Zoldervloer hoofdhuis -->
+          <rect x="0.28" y="${(yGoot - 0.16).toFixed(2)}" width="${(depthMain - 0.56).toFixed(2)}" height="0.16" fill="#94a3b8" stroke="#64748b" stroke-width="0.02" />
+
+          <!-- 5. MASSIEVE GEVELMUREN (DOORSNEDE) -->
+          <!-- Voorgevel hoofdhuis (spouw 28cm) -->
+          <rect x="0" y="${yGoot.toFixed(2)}" width="0.28" height="${gootH.toFixed(2)}" fill="#334155" stroke="#0f172a" stroke-width="0.04" />
+          <!-- Achtergevel hoofdhuis / overgang (spouw 28cm) -->
+          <rect x="${(depthMain - 0.28).toFixed(2)}" y="${yGoot.toFixed(2)}" width="0.28" height="${gootH.toFixed(2)}" fill="#334155" stroke="#0f172a" stroke-width="0.04" />
+          ${hasExt ? `
+            <!-- Achtergevel aanbouw (spouw 28cm) -->
+            <rect x="${(xExtEnd - 0.28).toFixed(2)}" y="${yPlat.toFixed(2)}" width="0.28" height="${platH.toFixed(2)}" fill="#334155" stroke="#0f172a" stroke-width="0.04" />
+          ` : ''}
+
+          <!-- Ramen indicaties in gevel -->
+          <rect x="-0.04" y="${(yVerd - 1.6).toFixed(2)}" width="0.1" height="1.1" fill="#38bdf8" stroke="#0284c7" stroke-width="0.02" />
+          <rect x="-0.04" y="8.0" width="0.1" height="1.3" fill="#38bdf8" stroke="#0284c7" stroke-width="0.02" />
+          <rect x="${(xExtEnd - 0.06).toFixed(2)}" y="8.0" width="0.1" height="1.3" fill="#38bdf8" stroke="#0284c7" stroke-width="0.02" />
+
+          <!-- 6. RUIMTELABELS BINNENWERKS -->
+          <text x="${(depthMain/2).toFixed(2)}" y="${(yVerd - 1.2).toFixed(2)}" fill="#334155" font-size="0.38" font-family="sans-serif" font-weight="bold" text-anchor="middle">1e Verdieping</text>
+          <text x="${(depthMain/2).toFixed(2)}" y="${(yVerd - 0.7).toFixed(2)}" fill="#64748b" font-size="0.26" font-family="sans-serif" text-anchor="middle">Slaapkamers / Wonen (61 m²)</text>
+
+          <text x="${(depthMain/2).toFixed(2)}" y="8.6" fill="#334155" font-size="0.38" font-family="sans-serif" font-weight="bold" text-anchor="middle">Begane Grond</text>
+          <text x="${(depthMain/2).toFixed(2)}" y="9.0" fill="#64748b" font-size="0.26" font-family="sans-serif" text-anchor="middle">Woonkamer Hoofdvolume</text>
+
+          ${hasExt ? `
+            <text x="${(depthMain + depthExt/2).toFixed(2)}" y="8.6" fill="#334155" font-size="0.38" font-family="sans-serif" font-weight="bold" text-anchor="middle">Begane Grond Aanbouw</text>
+            <text x="${(depthMain + depthExt/2).toFixed(2)}" y="9.0" fill="#64748b" font-size="0.26" font-family="sans-serif" text-anchor="middle">Keuken / Tuinkamer / Bijkeuken</text>
+          ` : ''}
+
+          <!-- 7. VERTICALE PEILKETTING LINKS -->
+          <!-- Nok -->
+          <line x1="-1.6" y1="${yNok.toFixed(2)}" x2="${(depthMain/2).toFixed(2)}" y2="${yNok.toFixed(2)}" stroke="#0284c7" stroke-width="0.03" stroke-dasharray="0.1,0.1" opacity="0.4" />
+          <polygon points="-1.6,${yNok.toFixed(2)} -1.9,${(yNok - 0.15).toFixed(2)} -1.9,${(yNok + 0.15).toFixed(2)}" fill="#0284c7" />
+          <text x="-2.1" y="${(yNok + 0.12).toFixed(2)}" fill="#0369a1" font-size="0.34" font-family="monospace" font-weight="bold" text-anchor="end">+${nokH.toFixed(2)}m Nok</text>
+
+          <!-- Goot / Zolder -->
+          <line x1="-1.6" y1="${yGoot.toFixed(2)}" x2="-0.1" y2="${yGoot.toFixed(2)}" stroke="#0284c7" stroke-width="0.03" stroke-dasharray="0.1,0.1" opacity="0.4" />
+          <polygon points="-1.6,${yGoot.toFixed(2)} -1.9,${(yGoot - 0.15).toFixed(2)} -1.9,${(yGoot + 0.15).toFixed(2)}" fill="#0284c7" />
+          <text x="-2.1" y="${(yGoot + 0.12).toFixed(2)}" fill="#0369a1" font-size="0.34" font-family="monospace" font-weight="bold" text-anchor="end">+${gootH.toFixed(2)}m Goot / Zolder</text>
+
+          <!-- 1e Verdieping -->
+          <line x1="-1.6" y1="${yVerd.toFixed(2)}" x2="-0.1" y2="${yVerd.toFixed(2)}" stroke="#0284c7" stroke-width="0.03" stroke-dasharray="0.1,0.1" opacity="0.4" />
+          <polygon points="-1.6,${yVerd.toFixed(2)} -1.9,${(yVerd - 0.15).toFixed(2)} -1.9,${(yVerd + 0.15).toFixed(2)}" fill="#0284c7" />
+          <text x="-2.1" y="${(yVerd + 0.12).toFixed(2)}" fill="#0369a1" font-size="0.34" font-family="monospace" font-weight="bold" text-anchor="end">+${verdH.toFixed(2)}m 1e Verd.</text>
+
+          <!-- Peil 0.00m -->
+          <polygon points="-1.6,10.0 -1.9,9.85 -1.9,10.15" fill="#0f172a" />
+          <text x="-2.1" y="10.12" fill="#0f172a" font-size="0.34" font-family="monospace" font-weight="bold" text-anchor="end">0.00m Peil (Maaiveld)</text>
+
+          ${hasExt ? `
+            <!-- Plat dak hoogte rechts -->
+            <line x1="${xExtEnd.toFixed(2)}" y1="${yPlat.toFixed(2)}" x2="${(xExtEnd + 1.4).toFixed(2)}" y2="${yPlat.toFixed(2)}" stroke="#0284c7" stroke-width="0.03" stroke-dasharray="0.1,0.1" opacity="0.4" />
+            <polygon points="${(xExtEnd + 1.4).toFixed(2)},${yPlat.toFixed(2)} ${(xExtEnd + 1.7).toFixed(2)},${(yPlat - 0.15).toFixed(2)} ${(xExtEnd + 1.7).toFixed(2)},${(yPlat + 0.15).toFixed(2)}" fill="#0284c7" />
+            <text x="${(xExtEnd + 1.9).toFixed(2)}" y="${(yPlat + 0.12).toFixed(2)}" fill="#0369a1" font-size="0.34" font-family="monospace" font-weight="bold" text-anchor="start">+${platH.toFixed(2)}m Plat dak</text>
+          ` : ''}
+
+          <!-- 8. HORIZONTALE MAATVOERING ONDER (DIEPTEMATEN) -->
+          <!-- Hoofdhuis maat -->
+          <line x1="0" y1="10.8" x2="${depthMain.toFixed(2)}" y2="10.8" stroke="#0284c7" stroke-width="0.04" marker-start="url(#secDotBlue)" marker-end="url(#secDotBlue)" />
+          <line x1="0" y1="10.1" x2="0" y2="11.0" stroke="#0284c7" stroke-width="0.02" opacity="0.5" />
+          <line x1="${depthMain.toFixed(2)}" y1="10.1" x2="${depthMain.toFixed(2)}" y2="11.0" stroke="#0284c7" stroke-width="0.02" opacity="0.5" />
+          <rect x="${(depthMain/2 - 1.0).toFixed(2)}" y="10.55" width="2.0" height="0.5" rx="0.15" fill="#f0f9ff" stroke="#0284c7" stroke-width="0.03" />
+          <text x="${(depthMain/2).toFixed(2)}" y="10.92" fill="#0369a1" font-size="0.34" font-family="monospace" font-weight="bold" text-anchor="middle">${depthMain.toFixed(2)}m</text>
+
+          ${hasExt ? `
+            <!-- Aanbouw maat -->
+            <line x1="${depthMain.toFixed(2)}" y1="10.8" x2="${xExtEnd.toFixed(2)}" y2="10.8" stroke="#0284c7" stroke-width="0.04" marker-start="url(#secDotBlue)" marker-end="url(#secDotBlue)" />
+            <line x1="${xExtEnd.toFixed(2)}" y1="10.1" x2="${xExtEnd.toFixed(2)}" y2="11.0" stroke="#0284c7" stroke-width="0.02" opacity="0.5" />
+            <rect x="${(depthMain + depthExt/2 - 1.0).toFixed(2)}" y="10.55" width="2.0" height="0.5" rx="0.15" fill="#f0f9ff" stroke="#0284c7" stroke-width="0.03" />
+            <text x="${(depthMain + depthExt/2).toFixed(2)}" y="10.92" fill="#0369a1" font-size="0.34" font-family="monospace" font-weight="bold" text-anchor="middle">${depthExt.toFixed(2)}m</text>
+
+            <!-- Totale diepte daaronder -->
+            <line x1="0" y1="11.55" x2="${xExtEnd.toFixed(2)}" y2="11.55" stroke="#475569" stroke-width="0.04" marker-start="url(#secDotBlue)" marker-end="url(#secDotBlue)" />
+            <line x1="0" y1="10.9" x2="0" y2="11.75" stroke="#475569" stroke-width="0.02" opacity="0.5" />
+            <line x1="${xExtEnd.toFixed(2)}" y1="10.9" x2="${xExtEnd.toFixed(2)}" y2="11.75" stroke="#475569" stroke-width="0.02" opacity="0.5" />
+            <rect x="${(totalDepth/2 - 1.3).toFixed(2)}" y="11.3" width="2.6" height="0.5" rx="0.15" fill="#f8fafc" stroke="#475569" stroke-width="0.03" />
+            <text x="${(totalDepth/2).toFixed(2)}" y="11.67" fill="#334155" font-size="0.34" font-family="monospace" font-weight="bold" text-anchor="middle">${totalDepth.toFixed(2)}m Totaal</text>
+          ` : ''}
+        </svg>
+      `;
     }
 
     function renderFloorplan(d) {
@@ -1959,14 +2172,18 @@
         }
       }
 
-      // 4. Verkrijg geometrie van geselecteerde verdieping (cognitief bouwkundig model)
       const totalWoonopp = state.logistics.oppervlakte || 0;
-      let pts = computeFloorGeometry(basePts, frontWallIdx, currentFloorplanEtage, totalWoonopp);
+
+      // Zijaanzicht / Doorsnede weergave routing
+      if (currentFloorplanEtage === 'section') {
+        renderFloorplanSection(wrapper, basePts, frontWallIdx, totalWoonopp);
+        return;
+      }
+
+      // 4. Verkrijg geometrie van geselecteerde verdieping (cognitief bouwkundig model)
+      let pts = computeFloorGeometry(basePts, frontWallIdx, currentFloorplanEtage, totalWoonopp, d);
       const n = pts.length;
       if (n < 3) return;
-
-      const cX = pts.reduce((s, p) => s + p.x, 0) / n;
-      const cY = pts.reduce((s, p) => s + p.y, 0) / n;
 
       // 5. Oriëntatie & Rotatie: 'north' (Noord boven) vs 'front_left' (Voorzijde naar links)
       let rotAngle = 0;
@@ -1982,6 +2199,24 @@
         rotAngle = Math.PI - normAngle; // Roteert voorgevel normaal exact naar links (-X, hoek PI)
       }
 
+      // Referentiecentrum Begane Grond (Zodat ALLE verdiepingen exact hetzelfde middelpunt delen)
+      const baseCX = basePts.reduce((s, p) => s + p.x, 0) / baseN;
+      const baseCY = basePts.reduce((s, p) => s + p.y, 0) / baseN;
+
+      let rotBasePts = basePts;
+      if (rotAngle !== 0) {
+        const cosR = Math.cos(rotAngle);
+        const sinR = Math.sin(rotAngle);
+        rotBasePts = basePts.map(p => ({
+          x: baseCX + (p.x - baseCX) * cosR - (p.y - baseCY) * sinR,
+          y: baseCY + (p.x - baseCX) * sinR + (p.y - baseCY) * cosR
+        }));
+        pts = pts.map(p => ({
+          x: baseCX + (p.x - baseCX) * cosR - (p.y - baseCY) * sinR,
+          y: baseCY + (p.x - baseCX) * sinR + (p.y - baseCY) * cosR
+        }));
+      }
+
       // Update Street View Kompas widget
       const compassSvg = document.getElementById('fpCompassSvg');
       const compassLabel = document.getElementById('fpCompassModeLabel');
@@ -1993,98 +2228,10 @@
         compassLabel.textContent = (currentFloorplanOrientation === 'front_left') ? 'Voorzijde ◀' : 'Noord ↑';
       }
 
-      // Toepassen rotatie op punten indien stand 'front_left'
-      if (rotAngle !== 0) {
-        const cosR = Math.cos(rotAngle);
-        const sinR = Math.sin(rotAngle);
-        pts = pts.map(p => ({
-          x: cX + (p.x - cX) * cosR - (p.y - cY) * sinR,
-          y: cY + (p.x - cX) * sinR + (p.y - cY) * cosR
-        }));
-      }
-
-      // Achtergrond contour van begane grond uitbouw bij bovenverdiepingen
-      let bgExtensionSvg = '';
-      if (currentFloorplanEtage > 0 && n < baseN) {
-        let rotBasePts = basePts;
-        if (rotAngle !== 0) {
-          const cosR = Math.cos(rotAngle);
-          const sinR = Math.sin(rotAngle);
-          rotBasePts = basePts.map(p => ({
-            x: cX + (p.x - cX) * cosR - (p.y - cY) * sinR,
-            y: cY + (p.x - cX) * sinR + (p.y - cY) * cosR
-          }));
-        }
-        const bgExtPath = rotBasePts.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x.toFixed(3)} ${p.y.toFixed(3)}`).join(' ') + ' Z';
-        bgExtensionSvg = `
-          <!-- Begane grond omtrek (uitbouw / plat dak) -->
-          <path d="${bgExtPath}" fill="#f8fafc" stroke="#cbd5e1" stroke-width="0.08" stroke-dasharray="0.3,0.15" stroke-linejoin="round" />
-        `;
-      }
-
-      // 6. Binnenwanden offset (atomaire inwaartse bissectrice)
-      let signedArea = 0;
-      for (let i = 0; i < n; i++) {
-        const p1 = pts[i];
-        const p2 = pts[(i + 1) % n];
-        signedArea += (p1.x * p2.y - p2.x * p1.y);
-      }
-      signedArea *= 0.5;
-      const bvo = Math.abs(signedArea);
-      const sign = (signedArea < 0) ? -1 : 1;
-
-      const innerPts = [];
-      const isConcaveCorner = [];
-      for (let i = 0; i < n; i++) {
-        const pPrev = pts[(i - 1 + n) % n];
-        const pCurr = pts[i];
-        const pNext = pts[(i + 1) % n];
-
-        const v1x = pCurr.x - pPrev.x;
-        const v1y = pCurr.y - pPrev.y;
-        const l1 = Math.hypot(v1x, v1y);
-
-        const v2x = pNext.x - pCurr.x;
-        const v2y = pNext.y - pCurr.y;
-        const l2 = Math.hypot(v2x, v2y);
-
-        const n1x = -v1y / l1 * sign;
-        const n1y = v1x / l1 * sign;
-        const n2x = -v2y / l2 * sign;
-        const n2y = v2x / l2 * sign;
-
-        const bisectX = n1x + n2x;
-        const bisectY = n1y + n2y;
-        const lb = Math.hypot(bisectX, bisectY);
-
-        const cross = (v1x * v2y - v1y * v2x) * sign;
-        isConcaveCorner.push(cross < 0);
-
-        if (lb < 1e-4) {
-          innerPts.push({ x: pCurr.x + n1x * d, y: pCurr.y + n1y * d });
-        } else {
-          const dot = Math.max(-0.99, Math.min(0.99, n1x * n2x + n1y * n2y));
-          let scale = d / Math.sqrt((1 + dot) / 2);
-          scale = Math.min(scale, d * 2.5);
-          innerPts.push({
-            x: pCurr.x + (bisectX / lb) * scale,
-            y: pCurr.y + (bisectY / lb) * scale
-          });
-        }
-      }
-
-      // Netto oppervlakte berekening
-      let innerSignedArea = 0;
-      for (let i = 0; i < n; i++) {
-        const p1 = innerPts[i];
-        const p2 = innerPts[(i + 1) % n];
-        innerSignedArea += (p1.x * p2.y - p2.x * p1.y);
-      }
-      const netto = Math.abs(innerSignedArea * 0.5);
-
-      // Bounding box voor schaling
+      // Bounding box voor schaling: ALTIJD gebaseerd op het totale grondvlak (Begane Grond)!
+      // Dit garandeert 100% IDENTIEKE SCHAAL en dezelfde fysieke positie tussen alle verdiepingen!
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-      pts.forEach(p => {
+      rotBasePts.forEach(p => {
         if (p.x < minX) minX = p.x;
         if (p.x > maxX) maxX = p.x;
         if (p.y < minY) minY = p.y;
@@ -2096,6 +2243,16 @@
       const height = (maxY - minY) + pad * 2;
       const viewBoxX = minX - pad;
       const viewBoxY = minY - pad;
+
+      // Achtergrond contour van begane grond uitbouw bij bovenverdiepingen
+      let bgExtensionSvg = '';
+      if (currentFloorplanEtage > 0 && n < baseN) {
+        const bgExtPath = rotBasePts.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x.toFixed(3)} ${p.y.toFixed(3)}`).join(' ') + ' Z';
+        bgExtensionSvg = `
+          <!-- Begane grond omtrek (uitbouw / plat dak) -->
+          <path d="${bgExtPath}" fill="#f8fafc" stroke="#cbd5e1" stroke-width="0.08" stroke-dasharray="0.3,0.15" stroke-linejoin="round" />
+        `;
+      }
 
       const outerPath = pts.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x.toFixed(3)} ${p.y.toFixed(3)}`).join(' ') + ' Z';
       const innerPath = innerPts.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x.toFixed(3)} ${p.y.toFixed(3)}`).join(' ') + ' Z';
@@ -2118,6 +2275,167 @@
           bestFrontDot = dot;
           floorFrontWallIdx = i;
         }
+      }
+
+      // --- SPECIFIEKE RENDERING VOOR ZOLDER / KAP (currentFloorplanEtage === 2) ---
+      // Op zolder staan GEEN gemetselde voor- en achtergevels: dat zijn de dakgoten/schuine dakvlakken!
+      // Alleen de twee kopgevels (zijmuren) zijn gemetseld op schaaldikte d.
+      if (currentFloorplanEtage === 2 && n === 4) {
+        const f = floorFrontWallIdx;
+        const r = (f + 2) % 4;
+        const s1 = (f + 1) % 4;
+        const s2 = (f + 3) % 4;
+
+        const pFA = pts[f], pFB = pts[(f + 1) % 4];
+        const pRA = pts[r], pRB = pts[(r + 1) % 4];
+
+        // Vectoren en dieptes
+        const fvx = pFB.x - pFA.x, fvy = pFB.y - pFA.y;
+        const flen = Math.hypot(fvx, fvy);
+        const fux = fvx / flen, fuy = fvy / flen;
+
+        const midF = { x: (pFA.x + pFB.x)/2, y: (pFA.y + pFB.y)/2 };
+        const midR = { x: (pRA.x + pRB.x)/2, y: (pRA.y + pRB.y)/2 };
+        const vDx = midR.x - midF.x, vDy = midR.y - midF.y;
+        const totalD = Math.hypot(vDx, vDy);
+        const uDx = vDx / totalD, uDy = vDy / totalD;
+
+        // Inspringing 1.50m stahoogtelijn onder zadeldak (NEN 2580)
+        const dxSta = 1.35;
+        const staFront1 = { x: pFA.x + uDx * dxSta, y: pFA.y + uDy * dxSta };
+        const staFront2 = { x: pFB.x + uDx * dxSta, y: pFB.y + uDy * dxSta };
+        const staRear1 = { x: pRB.x - uDx * dxSta, y: pRB.y - uDy * dxSta };
+        const staRear2 = { x: pRA.x - uDx * dxSta, y: pRA.y - uDy * dxSta };
+
+        // Noklijn punten (halfweg)
+        const nok1 = { x: (pFA.x + pRA.x)/2, y: (pFA.y + pRA.y)/2 };
+        const nok2 = { x: (pFB.x + pRB.x)/2, y: (pFB.y + pRB.y)/2 };
+
+        // Kopgevels (zijmuren) met schaaldikte d
+        const inSideNx1 = -fux * d, inSideNy1 = -fuy * d;
+        const inSideNx2 = fux * d, inSideNy2 = fuy * d;
+
+        // Maatvoeringen zolder
+        let zolderDimSvg = '';
+        if (showOuterDimensions) {
+          // Buitenmaat breedte
+          const bMidX = (pFA.x + pFB.x)/2 - uDx * 1.55;
+          const bMidY = (pFA.y + pFB.y)/2 - uDy * 1.55;
+          let angleF = Math.atan2(fvy, fvx) * 180 / Math.PI;
+          if (angleF > 90 || angleF < -90) angleF += 180;
+          zolderDimSvg += `
+            <line x1="${(pFA.x - uDx * 1.55).toFixed(3)}" y1="${(pFA.y - uDy * 1.55).toFixed(3)}" x2="${(pFB.x - uDx * 1.55).toFixed(3)}" y2="${(pFB.y - uDy * 1.55).toFixed(3)}" stroke="#0284c7" stroke-width="0.05" marker-start="url(#dotBlue)" marker-end="url(#dotBlue)" />
+            <g transform="translate(${bMidX.toFixed(3)}, ${bMidY.toFixed(3)}) rotate(${angleF.toFixed(1)})">
+              <rect x="-1.15" y="-0.32" width="2.3" height="0.64" rx="0.18" fill="#f0f9ff" stroke="#0284c7" stroke-width="0.04" />
+              <text y="0.14" fill="#0369a1" font-size="0.42" font-family="monospace" font-weight="bold" text-anchor="middle">${flen.toFixed(2)}m</text>
+            </g>
+          `;
+        }
+
+        if (showInnerDimensions) {
+          // Binnenmaat breedte tussen de twee stenen kopgevels
+          const innerW = flen - 2 * d;
+          const iMidX = (pFA.x + pFB.x)/2 - uDx * 0.85;
+          const iMidY = (pFA.y + pFB.y)/2 - uDy * 0.85;
+          let angleF = Math.atan2(fvy, fvx) * 180 / Math.PI;
+          if (angleF > 90 || angleF < -90) angleF += 180;
+          zolderDimSvg += `
+            <line x1="${(pFA.x + inSideNx2 - uDx * 0.85).toFixed(3)}" y1="${(pFA.y + inSideNy2 - uDy * 0.85).toFixed(3)}" x2="${(pFB.x + inSideNx1 - uDx * 0.85).toFixed(3)}" y2="${(pFB.y + inSideNy1 - uDy * 0.85).toFixed(3)}" stroke="#d97706" stroke-width="0.05" marker-start="url(#dotAmber)" marker-end="url(#dotAmber)" />
+            <g transform="translate(${iMidX.toFixed(3)}, ${iMidY.toFixed(3)}) rotate(${angleF.toFixed(1)})">
+              <rect x="-1.15" y="-0.32" width="2.3" height="0.64" rx="0.18" fill="#fffbeb" stroke="#d97706" stroke-width="0.04" />
+              <text y="0.14" fill="#b45309" font-size="0.42" font-family="monospace" font-weight="bold" text-anchor="middle">${innerW.toFixed(2)}m</text>
+            </g>
+          `;
+
+          // Binnenmaat diepte totale kap
+          const dMidX = (midF.x + midR.x)/2 + fux * 1.25;
+          const dMidY = (midF.y + midR.y)/2 + fuy * 1.25;
+          let angleD = Math.atan2(vDy, vDx) * 180 / Math.PI;
+          if (angleD > 90 || angleD < -90) angleD += 180;
+          zolderDimSvg += `
+            <line x1="${(midF.x + fux * 1.25).toFixed(3)}" y1="${(midF.y + fuy * 1.25).toFixed(3)}" x2="${(midR.x + fux * 1.25).toFixed(3)}" y2="${(midR.y + fuy * 1.25).toFixed(3)}" stroke="#d97706" stroke-width="0.05" marker-start="url(#dotAmber)" marker-end="url(#dotAmber)" />
+            <g transform="translate(${dMidX.toFixed(3)}, ${dMidY.toFixed(3)}) rotate(${angleD.toFixed(1)})">
+              <rect x="-1.15" y="-0.32" width="2.3" height="0.64" rx="0.18" fill="#fffbeb" stroke="#d97706" stroke-width="0.04" />
+              <text y="0.14" fill="#b45309" font-size="0.42" font-family="monospace" font-weight="bold" text-anchor="middle">${totalD.toFixed(2)}m</text>
+            </g>
+          `;
+        }
+
+        // Voorgevelbadge bij straatgoot
+        const fBadgeX = midF.x - uDx * 1.8;
+        const fBadgeY = midF.y - uDy * 1.8;
+        let angleGoot = Math.atan2(fvy, fvx) * 180 / Math.PI;
+        if (angleGoot > 90 || angleGoot < -90) angleGoot += 180;
+
+        wrapper.innerHTML = `
+          <svg viewBox="${viewBoxX.toFixed(2)} ${viewBoxY.toFixed(2)} ${width.toFixed(2)} ${height.toFixed(2)}" class="w-full h-full" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <pattern id="archGrid" width="1" height="1" patternUnits="userSpaceOnUse">
+                <path d="M 1 0 L 0 0 0 1" fill="none" stroke="#f1f5f9" stroke-width="0.03" />
+              </pattern>
+              <pattern id="atticSlopeHatch" width="0.35" height="0.35" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+                <line x1="0" y1="0" x2="0" y2="0.35" stroke="#e2e8f0" stroke-width="0.06" />
+              </pattern>
+              <marker id="dotBlue" markerWidth="4" markerHeight="4" refX="2" refY="2">
+                <circle cx="2" cy="2" r="1.3" fill="#0284c7" />
+              </marker>
+              <marker id="dotAmber" markerWidth="4" markerHeight="4" refX="2" refY="2">
+                <circle cx="2" cy="2" r="1.3" fill="#d97706" />
+              </marker>
+            </defs>
+
+            <!-- 1. Achtergrond raster (onderste laag van alles) -->
+            <rect x="${viewBoxX.toFixed(2)}" y="${viewBoxY.toFixed(2)}" width="${width.toFixed(2)}" height="${height.toFixed(2)}" fill="url(#archGrid)" />
+
+            ${bgExtensionSvg}
+
+            <!-- 2. Zoldervloer oppervlak (dekkend wit) -->
+            <path d="${outerPath}" fill="#ffffff" stroke="#cbd5e1" stroke-width="0.04" />
+
+            <!-- 3. Schuin dakvlak & knieschot zones (< 1.50m) gearceerd -->
+            <polygon points="${pFA.x.toFixed(3)},${pFA.y.toFixed(3)} ${pFB.x.toFixed(3)},${pFB.y.toFixed(3)} ${staFront2.x.toFixed(3)},${staFront2.y.toFixed(3)} ${staFront1.x.toFixed(3)},${staFront1.y.toFixed(3)}" fill="url(#atticSlopeHatch)" />
+            <polygon points="${pRA.x.toFixed(3)},${pRA.y.toFixed(3)} ${pRB.x.toFixed(3)},${pRB.y.toFixed(3)} ${staRear1.x.toFixed(3)},${staRear1.y.toFixed(3)} ${staRear2.x.toFixed(3)},${staRear2.y.toFixed(3)}" fill="url(#atticSlopeHatch)" />
+
+            <!-- 4. Beloopbaar Woonoppervlak zone (h ≥ 1.50m • NEN 2580) -->
+            <polygon points="${staFront1.x.toFixed(3)},${staFront1.y.toFixed(3)} ${staFront2.x.toFixed(3)},${staFront2.y.toFixed(3)} ${staRear1.x.toFixed(3)},${staRear1.y.toFixed(3)} ${staRear2.x.toFixed(3)},${staRear2.y.toFixed(3)}" fill="#eff6ff" stroke="#0284c7" stroke-width="0.04" stroke-dasharray="0.2,0.1" />
+
+            <!-- 5. Stahoogtelijnen annotaties -->
+            <text x="${((staFront1.x + staFront2.x)/2).toFixed(3)}" y="${((staFront1.y + staFront2.y)/2 + 0.35).toFixed(3)}" fill="#0284c7" font-size="0.30" font-family="sans-serif" font-weight="600" text-anchor="middle" transform="rotate(${angleGoot}, ${((staFront1.x + staFront2.x)/2).toFixed(3)}, ${((staFront1.y + staFront2.y)/2).toFixed(3)})">-- 1.50m stahoogtelijn (NEN 2580 grens) --</text>
+            <text x="${((staRear1.x + staRear2.x)/2).toFixed(3)}" y="${((staRear1.y + staRear2.y)/2 - 0.20).toFixed(3)}" fill="#0284c7" font-size="0.30" font-family="sans-serif" font-weight="600" text-anchor="middle" transform="rotate(${angleGoot}, ${((staRear1.x + staRear2.x)/2).toFixed(3)}, ${((staRear1.y + staRear2.y)/2).toFixed(3)})">-- 1.50m stahoogtelijn (NEN 2580 grens) --</text>
+
+            <!-- 6. Noklijn in het midden -->
+            <line x1="${nok1.x.toFixed(3)}" y1="${nok1.y.toFixed(3)}" x2="${nok2.x.toFixed(3)}" y2="${nok2.y.toFixed(3)}" stroke="#475569" stroke-width="0.06" stroke-dasharray="0.4,0.15" />
+            <text x="${((nok1.x + nok2.x)/2).toFixed(3)}" y="${((nok1.y + nok2.y)/2 - 0.15).toFixed(3)}" fill="#475569" font-size="0.28" font-family="sans-serif" font-weight="700" text-anchor="middle" transform="rotate(${angleGoot}, ${((nok1.x + nok2.x)/2).toFixed(3)}, ${((nok1.y + nok2.y)/2).toFixed(3)})">Noklijn</text>
+
+            <!-- 7. Gemetselde Kopgevels (Alleen de 2 zijmuren!) -->
+            <line x1="${pFA.x.toFixed(3)}" y1="${pFA.y.toFixed(3)}" x2="${pRA.x.toFixed(3)}" y2="${pRA.y.toFixed(3)}" stroke="#1e293b" stroke-width="${strokeWall.toFixed(2)}" stroke-linecap="round" />
+            <line x1="${pFB.x.toFixed(3)}" y1="${pFB.y.toFixed(3)}" x2="${pRB.x.toFixed(3)}" y2="${pRB.y.toFixed(3)}" stroke="#1e293b" stroke-width="${strokeWall.toFixed(2)}" stroke-linecap="round" />
+
+            <!-- 8. Dakgoten aan voor- en achterzijde (geen metselwerk) -->
+            <line x1="${pFA.x.toFixed(3)}" y1="${pFA.y.toFixed(3)}" x2="${pFB.x.toFixed(3)}" y2="${pFB.y.toFixed(3)}" stroke="#64748b" stroke-width="0.06" stroke-dasharray="0.2,0.1" />
+            <line x1="${pRA.x.toFixed(3)}" y1="${pRA.y.toFixed(3)}" x2="${pRB.x.toFixed(3)}" y2="${pRB.y.toFixed(3)}" stroke="#64748b" stroke-width="0.06" stroke-dasharray="0.2,0.1" />
+
+            <!-- Labels voor goten -->
+            <text x="${((pFA.x + pFB.x)/2).toFixed(3)}" y="${((pFA.y + pFB.y)/2 - 0.25).toFixed(3)}" fill="#64748b" font-size="0.28" font-family="sans-serif" font-weight="600" text-anchor="middle" transform="rotate(${angleGoot}, ${((pFA.x + pFB.x)/2).toFixed(3)}, ${((pFA.y + pFB.y)/2).toFixed(3)})">Dakgoot Voorgevel (geen borstwering)</text>
+            <text x="${((pRA.x + pRB.x)/2).toFixed(3)}" y="${((pRA.y + pRB.y)/2 + 0.40).toFixed(3)}" fill="#64748b" font-size="0.28" font-family="sans-serif" font-weight="600" text-anchor="middle" transform="rotate(${angleGoot}, ${((pRA.x + pRB.x)/2).toFixed(3)}, ${((pRA.y + pRB.y)/2).toFixed(3)})">Dakgoot Achtergevel (geen borstwering)</text>
+
+            <!-- 9. Maatvoeringen zolder -->
+            ${zolderDimSvg}
+
+            <!-- Voorgevel Badge -->
+            <g transform="translate(${fBadgeX.toFixed(3)}, ${fBadgeY.toFixed(3)}) rotate(${angleGoot.toFixed(1)})">
+              <rect x="-2.2" y="-0.38" width="4.4" height="0.76" rx="0.22" fill="#ffffff" stroke="#1a73e8" stroke-width="0.05" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.15))" />
+              <text y="0.13" fill="#1a73e8" font-size="0.36" font-family="sans-serif" font-weight="bold" text-anchor="middle">◀ VOORZIJDE (STRAAT)</text>
+            </g>
+
+            <!-- 10. Centrum Etage Badge -->
+            <g transform="translate(${cX.toFixed(2)}, ${cY.toFixed(2)})" text-anchor="middle" pointer-events="none">
+              <rect x="-2.5" y="-0.5" width="5.0" height="1.0" rx="0.3" fill="#ffffff" stroke="#cbd5e1" stroke-width="0.04" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.08))" />
+              <text y="0.2" fill="#475569" font-size="0.40" font-weight="bold" font-family="sans-serif">ZOLDER / KAP (CONCEPT)</text>
+            </g>
+          </svg>
+        `;
+        return;
       }
 
       // 7. Maten en Maatlijnen genereren
