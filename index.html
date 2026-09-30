@@ -579,18 +579,18 @@
         <!-- Muurdikte Selector & Toelichting -->
         <div class="flex flex-wrap items-center justify-between gap-3 text-xs">
           <div class="flex items-center gap-2">
-            <span class="text-slate-400 font-medium">Berekende Muurdikte:</span>
+            <span class="text-slate-400 font-medium">Muurdikte spouw:</span>
             <div class="flex items-center gap-1.5 bg-slate-900 p-1 rounded-lg border border-slate-800">
               <button onclick="setFloorplanThickness(0.25)" class="fp-thick-btn px-2.5 py-1 rounded text-xxs font-medium text-slate-300 hover:text-white transition-all" data-thick="0.25">25 cm</button>
-              <button onclick="setFloorplanThickness(0.28)" class="fp-thick-btn px-2.5 py-1 rounded text-xxs font-medium text-slate-300 hover:text-white transition-all" data-thick="0.28">28 cm (&lt;1975)</button>
-              <button onclick="setFloorplanThickness(0.30)" class="fp-thick-btn px-2.5 py-1 rounded text-xxs font-medium text-slate-300 hover:text-white transition-all" data-thick="0.30">30 cm</button>
-              <button onclick="setFloorplanThickness(0.32)" class="fp-thick-btn px-2.5 py-1 rounded text-xxs font-medium text-slate-300 hover:text-white transition-all" data-thick="0.32">32 cm (1994)</button>
+              <button onclick="setFloorplanThickness(0.28)" class="fp-thick-btn px-2.5 py-1 rounded text-xxs font-medium text-slate-300 hover:text-white transition-all" data-thick="0.28">28 cm</button>
+              <button onclick="setFloorplanThickness(0.30)" class="fp-thick-btn px-2.5 py-1 rounded text-xxs font-medium text-slate-300 hover:text-white transition-all" data-thick="0.30">30 cm (Standaard)</button>
+              <button onclick="setFloorplanThickness(0.32)" class="fp-thick-btn px-2.5 py-1 rounded text-xxs font-medium text-slate-300 hover:text-white transition-all" data-thick="0.32">32 cm</button>
               <button onclick="setFloorplanThickness(0.35)" class="fp-thick-btn px-2.5 py-1 rounded text-xxs font-medium text-slate-300 hover:text-white transition-all" data-thick="0.35">35 cm</button>
               <button onclick="setFloorplanThickness(0.40)" class="fp-thick-btn px-2.5 py-1 rounded text-xxs font-medium text-slate-300 hover:text-white transition-all" data-thick="0.40">40 cm</button>
             </div>
           </div>
           <div id="fpBouwjaarNote" class="text-xxs text-slate-400 italic">
-            Afgestemd op Bouwjaar 1969 (ongeïsoleerde spouwmuur)
+            Standaard spouwmuur 30 cm (in openbare data is muurdikte niet geregistreerd)
           </div>
         </div>
 
@@ -1593,11 +1593,11 @@
 
     function getTypicalWallThickness(bouwjaar) {
       const y = parseInt(bouwjaar, 10);
-      if (!y || isNaN(y)) return 0.32;
-      if (y < 1975) return 0.28;
+      if (!y || isNaN(y)) return 0.30;
+      if (y < 1975) return 0.30; // Standaard Nederlandse spouwmuur (30 cm)
       if (y < 1991) return 0.30;
       if (y < 2006) return 0.32;
-      if (y < 2015) return 0.36;
+      if (y < 2015) return 0.35;
       return 0.40;
     }
 
@@ -1661,8 +1661,7 @@
       if (noteEl) {
         const dCm = Math.round(d * 100);
         const bjText = bj ? `Bouwjaar ${bj}` : 'Onbekend bouwjaar';
-        const typeText = dCm <= 28 ? 'steens/ongeïsoleerde spouw' : (dCm <= 32 ? 'spouwmuur met isolatie' : 'hoogwaardige isolatie');
-        noteEl.textContent = `Muurdikte ingesteld op ${dCm} cm (${bjText} • ${typeText})`;
+        noteEl.textContent = `Muurdikte ingesteld op ${dCm} cm (${bjText} • ${dCm === 30 ? 'Nederlandse standaard spouw' : (dCm < 30 ? 'smalle spouw' : 'geïsoleerde spouw')})`;
       }
 
       // Update active state on buttons
@@ -1862,12 +1861,10 @@
         const vx = p2.x - p1.x;
         const vy = p2.y - p1.y;
         const outLen = Math.hypot(vx, vy);
-
-        const ivx = q2.x - q1.x;
-        const ivy = q2.y - q1.y;
-        const inLen = Math.hypot(ivx, ivy);
-
         if (outLen < 0.6) continue; // skip micro knikjes < 60cm
+
+        const ux = vx / outLen;
+        const uy = vy / outLen;
 
         // Normaal naar buiten gericht
         const outNx = vy / outLen * sign;
@@ -1884,7 +1881,7 @@
         const hasConcaveCorner = c1Concave || c2Concave;
         const placeInnerOutside = !hasConcaveCorner;
 
-        // 1. BUITENMAAT (blauw) - geplaatst op Track 1 aan de buitenzijde
+        // 1. BUITENMAAT (blauw) - loopt exact van hoekpunt p1 tot p2
         if (showOuter) {
           const outTrack1 = isDualMode && placeInnerOutside ? 0.70 : 0.82;
           const d1x = p1.x + outNx * outTrack1;
@@ -1892,18 +1889,16 @@
           const d2x = p2.x + outNx * outTrack1;
           const d2y = p2.y + outNy * outTrack1;
 
-          // Inset maatlijn 14% aan beide uiteinden zodat hoeken elkaar NOOIT raken
-          const inFrac1 = outLen > 3 ? 0.12 : 0.16;
-          const l1x = d1x + (d2x - d1x) * inFrac1;
-          const l1y = d1y + (d2y - d1y) * inFrac1;
-          const l2x = d1x + (d2x - d1x) * (1 - inFrac1);
-          const l2y = d1y + (d2y - d1y) * (1 - inFrac1);
-
           const mid1x = (d1x + d2x) / 2;
           const mid1y = (d1y + d2y) / 2;
 
           outerDimHtml += `
-            <line x1="${l1x.toFixed(3)}" y1="${l1y.toFixed(3)}" x2="${l2x.toFixed(3)}" y2="${l2y.toFixed(3)}" stroke="#0284c7" stroke-width="0.05" marker-start="url(#dotMarkerBlue)" marker-end="url(#dotMarkerBlue)" />
+            <!-- Witness lines Buitenmaat (verbinden buitenhoeken direct met maatlijn) -->
+            <line x1="${p1.x.toFixed(3)}" y1="${p1.y.toFixed(3)}" x2="${(d1x + outNx * 0.12).toFixed(3)}" y2="${(d1y + outNy * 0.12).toFixed(3)}" stroke="#0284c7" stroke-width="0.025" opacity="0.45" />
+            <line x1="${p2.x.toFixed(3)}" y1="${p2.y.toFixed(3)}" x2="${(d2x + outNx * 0.12).toFixed(3)}" y2="${(d2y + outNy * 0.12).toFixed(3)}" stroke="#0284c7" stroke-width="0.025" opacity="0.45" />
+
+            <!-- Maatlijn exact tussen de witness lines -->
+            <line x1="${d1x.toFixed(3)}" y1="${d1y.toFixed(3)}" x2="${d2x.toFixed(3)}" y2="${d2y.toFixed(3)}" stroke="#0284c7" stroke-width="0.05" marker-start="url(#dotMarkerBlue)" marker-end="url(#dotMarkerBlue)" />
             <g transform="translate(${mid1x.toFixed(3)}, ${mid1y.toFixed(3)}) rotate(${angle.toFixed(1)})">
               <rect x="-1.15" y="-0.32" width="2.3" height="0.64" rx="0.18" fill="#070d1e" stroke="#0284c7" stroke-width="0.04" />
               <text y="0.14" fill="#38bdf8" font-size="0.42" font-family="monospace" font-weight="bold" text-anchor="middle">${outLen.toFixed(2)}m</text>
@@ -1912,30 +1907,37 @@
         }
 
         // 2. BINNENMAAT (amber)
+        // Projecteer binnenhoekpunten q1 en q2 exact langs de wandrichting
+        const t1 = (q1.x - p1.x) * ux + (q1.y - p1.y) * uy;
+        const t2 = (q2.x - p1.x) * ux + (q2.y - p1.y) * uy;
+
+        const projQ1x = p1.x + ux * t1;
+        const projQ1y = p1.y + uy * t1;
+        const projQ2x = p1.x + ux * t2;
+        const projQ2y = p1.y + uy * t2;
+
+        const inLen = Math.hypot(projQ2x - projQ1x, projQ2y - projQ1y);
+
         if (showInner) {
           if (placeInnerOutside) {
             // Geplaatst op Track 2 aan de buitenzijde (1.55m)
+            // Loopt PRECIES tussen de geprojecteerde binnenhoekpunten!
             const outTrack2 = isDualMode ? 1.55 : 0.85;
-            const id1x = p1.x + outNx * outTrack2;
-            const id1y = p1.y + outNy * outTrack2;
-            const id2x = p2.x + outNx * outTrack2;
-            const id2y = p2.y + outNy * outTrack2;
-
-            const inFrac2 = inLen > 3 ? 0.12 : 0.16;
-            const il1x = id1x + (id2x - id1x) * inFrac2;
-            const il1y = id1y + (id2y - id1y) * inFrac2;
-            const il2x = id1x + (id2x - id1x) * (1 - inFrac2);
-            const il2y = id1y + (id2y - id1y) * (1 - inFrac2);
+            const id1x = projQ1x + outNx * outTrack2;
+            const id1y = projQ1y + outNy * outTrack2;
+            const id2x = projQ2x + outNx * outTrack2;
+            const id2y = projQ2y + outNy * outTrack2;
 
             const mid2x = (id1x + id2x) / 2;
             const mid2y = (id1y + id2y) / 2;
 
             innerDimHtml += `
-              <!-- Hulplijnen vanaf gevelhoeken naar track 2 -->
-              <line x1="${(p1.x + outNx * 0.12).toFixed(3)}" y1="${(p1.y + outNy * 0.12).toFixed(3)}" x2="${(p1.x + outNx * (outTrack2 + 0.12)).toFixed(3)}" y2="${(p1.y + outNy * (outTrack2 + 0.12)).toFixed(3)}" stroke="#d97706" stroke-width="0.02" stroke-dasharray="0.12 0.12" opacity="0.35" />
-              <line x1="${(p2.x + outNx * 0.12).toFixed(3)}" y1="${(p2.y + outNy * 0.12).toFixed(3)}" x2="${(p2.x + outNx * (outTrack2 + 0.12)).toFixed(3)}" y2="${(p2.y + outNy * (outTrack2 + 0.12)).toFixed(3)}" stroke="#d97706" stroke-width="0.02" stroke-dasharray="0.12 0.12" opacity="0.35" />
+              <!-- Witness lines Binnenmaat (starten bij binnenmuur q1 en q2 en lopen door spouw) -->
+              <line x1="${q1.x.toFixed(3)}" y1="${q1.y.toFixed(3)}" x2="${(id1x + outNx * 0.12).toFixed(3)}" y2="${(id1y + outNy * 0.12).toFixed(3)}" stroke="#d97706" stroke-width="0.025" stroke-dasharray="0.12 0.12" opacity="0.65" />
+              <line x1="${q2.x.toFixed(3)}" y1="${q2.y.toFixed(3)}" x2="${(id2x + outNx * 0.12).toFixed(3)}" y2="${(id2y + outNy * 0.12).toFixed(3)}" stroke="#d97706" stroke-width="0.025" stroke-dasharray="0.12 0.12" opacity="0.65" />
 
-              <line x1="${il1x.toFixed(3)}" y1="${il1y.toFixed(3)}" x2="${il2x.toFixed(3)}" y2="${il2y.toFixed(3)}" stroke="#d97706" stroke-width="0.05" marker-start="url(#dotMarkerAmber)" marker-end="url(#dotMarkerAmber)" />
+              <!-- Maatlijn exact tussen de binnenmuur-projecties -->
+              <line x1="${id1x.toFixed(3)}" y1="${id1y.toFixed(3)}" x2="${id2x.toFixed(3)}" y2="${id2y.toFixed(3)}" stroke="#d97706" stroke-width="0.05" marker-start="url(#dotMarkerAmber)" marker-end="url(#dotMarkerAmber)" />
               <g transform="translate(${mid2x.toFixed(3)}, ${mid2y.toFixed(3)}) rotate(${angle.toFixed(1)})">
                 <rect x="-1.15" y="-0.32" width="2.3" height="0.64" rx="0.18" fill="#070d1e" stroke="#d97706" stroke-width="0.04" />
                 <text y="0.14" fill="#fbbf24" font-size="0.42" font-family="monospace" font-weight="bold" text-anchor="middle">${inLen.toFixed(2)}m</text>
@@ -1952,20 +1954,20 @@
             const id2x = q2.x + inNx * inDist;
             const id2y = q2.y + inNy * inDist;
 
-            const inFrac2 = inLen > 3 ? 0.12 : 0.16;
-            const il1x = id1x + (id2x - id1x) * inFrac2;
-            const il1y = id1y + (id2y - id1y) * inFrac2;
-            const il2x = id1x + (id2x - id1x) * (1 - inFrac2);
-            const il2y = id1y + (id2y - id1y) * (1 - inFrac2);
-
             const mid2x = (id1x + id2x) / 2;
             const mid2y = (id1y + id2y) / 2;
 
+            const ivx = q2.x - q1.x;
+            const ivy = q2.y - q1.y;
             let angleIn = Math.atan2(ivy, ivx) * 180 / Math.PI;
             if (angleIn > 90 || angleIn < -90) angleIn += 180;
 
             innerDimHtml += `
-              <line x1="${il1x.toFixed(3)}" y1="${il1y.toFixed(3)}" x2="${il2x.toFixed(3)}" y2="${il2y.toFixed(3)}" stroke="#d97706" stroke-width="0.05" marker-start="url(#dotMarkerAmber)" marker-end="url(#dotMarkerAmber)" />
+              <!-- Witness lines binnenmuur in de kamer -->
+              <line x1="${q1.x.toFixed(3)}" y1="${q1.y.toFixed(3)}" x2="${(id1x + inNx * 0.1).toFixed(3)}" y2="${(id1y + inNy * 0.1).toFixed(3)}" stroke="#d97706" stroke-width="0.02" opacity="0.45" />
+              <line x1="${q2.x.toFixed(3)}" y1="${q2.y.toFixed(3)}" x2="${(id2x + inNx * 0.1).toFixed(3)}" y2="${(id2y + inNy * 0.1).toFixed(3)}" stroke="#d97706" stroke-width="0.02" opacity="0.45" />
+
+              <line x1="${id1x.toFixed(3)}" y1="${id1y.toFixed(3)}" x2="${id2x.toFixed(3)}" y2="${id2y.toFixed(3)}" stroke="#d97706" stroke-width="0.05" marker-start="url(#dotMarkerAmber)" marker-end="url(#dotMarkerAmber)" />
               <g transform="translate(${mid2x.toFixed(3)}, ${mid2y.toFixed(3)}) rotate(${angleIn.toFixed(1)})">
                 <rect x="-1.15" y="-0.32" width="2.3" height="0.64" rx="0.18" fill="#070d1e" stroke="#d97706" stroke-width="0.04" />
                 <text y="0.14" fill="#fbbf24" font-size="0.42" font-family="monospace" font-weight="bold" text-anchor="middle">${inLen.toFixed(2)}m</text>
