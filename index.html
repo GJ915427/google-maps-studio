@@ -70,8 +70,7 @@
       id="floorplanFullView" 
       class="hidden absolute inset-0 w-full h-full z-10 bg-white overflow-hidden select-none"
     >
-      <!-- Subtle Architectural Grid Background -->
-      <div class="absolute inset-0 bg-[linear-gradient(to_right,#f1f5f9_1px,transparent_1px),linear-gradient(to_bottom,#f1f5f9_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none"></div>
+      <!-- Architectural Grid is rendered inside SVG as the bottom layer -->
 
       <!-- Top Floating Navigation & Floorplan Controls (Right of Sidebar) -->
       <div class="absolute top-4 left-4 md:left-[430px] right-4 z-20 flex items-center justify-between pointer-events-none">
@@ -153,57 +152,53 @@
 
       <!-- Floating Controls Panel (Right Bottom) -->
       <div class="absolute right-4 bottom-6 z-20 bg-white/95 backdrop-blur-md rounded-2xl shadow-gmap border border-slate-200 p-3.5 space-y-3 w-72 max-w-[calc(100vw-32px)]">
-        <!-- Floor Status / Concept Disclaimer Badge -->
-        <div id="fpFloorBadge" class="text-xxs font-medium p-2 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-start gap-2">
-          <i id="fpFloorBadgeIcon" class="fa-solid fa-check text-emerald-600 text-xs mt-0.5"></i>
-          <span id="fpFloorBadgeText">Feitelijke buitenmuren • Kadastraal ingemeten</span>
+        <!-- Concept Disclaimer Badge (alleen zichtbaar bij bovenverdiepingen) -->
+        <div id="fpFloorBadge" class="hidden text-xxs font-medium p-2 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 flex items-start gap-2">
+          <i id="fpFloorBadgeIcon" class="fa-solid fa-circle-info text-amber-600 text-xs mt-0.5"></i>
+          <span id="fpFloorBadgeText">Afgeleide concepttekening • Indicatieve weergave o.b.v. hoogte & woonoppervlak</span>
         </div>
-
-        <!-- Buitenmaten Checkbox -->
-        <label class="flex items-center gap-2.5 text-xs text-slate-700 cursor-pointer select-none font-medium hover:text-slate-900 transition-colors">
-          <input 
-            type="checkbox" 
-            id="chkOuterDims" 
-            checked 
-            onchange="toggleOuterDims(this.checked)" 
-            class="w-4 h-4 rounded text-google-blue focus:ring-google-blue border-slate-300 accent-google-blue cursor-pointer"
-          />
-          <span>Buitenmaten tonen</span>
-        </label>
 
         <!-- Muurdikte Dropdown -->
         <div class="space-y-1">
-          <label for="fpWallThicknessSelect" class="text-xxs text-slate-500 font-medium block">Muurdikte spouw:</label>
+          <label for="fpWallThicknessSelect" class="text-xxs text-slate-500 font-medium block">Muurdikte:</label>
           <select 
             id="fpWallThicknessSelect" 
             onchange="setFloorplanThickness(parseFloat(this.value))" 
             class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-2.5 py-1.5 outline-none focus:border-google-blue focus:ring-1 focus:ring-google-blue cursor-pointer"
           >
             <option value="0.25">25 cm (massief / steens)</option>
-            <option value="0.28" selected>28 cm (smalle spouw &lt;1975)</option>
-            <option value="0.30">30 cm (standaard spouw)</option>
+            <option value="0.28" selected>28 cm (standaard spouw &lt;1975)</option>
+            <option value="0.30">30 cm (spouw)</option>
             <option value="0.32">32 cm (geïsoleerd 1991-2005)</option>
             <option value="0.35">35 cm (nieuwbouw 2006-2014)</option>
             <option value="0.40">40 cm (dikke isolatie 2015+)</option>
           </select>
         </div>
 
-        <!-- Legenda -->
-        <div class="pt-2 border-t border-slate-100 space-y-1.5 text-xxs text-slate-600">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-1.5">
-              <span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
-              <span class="font-medium text-amber-800">Binnenmaat</span>
-            </div>
-            <span class="text-slate-400">Altijd zichtbaar</span>
-          </div>
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-1.5">
-              <span class="w-2.5 h-2.5 rounded-full bg-sky-600 inline-block"></span>
-              <span class="font-medium text-sky-800">Buitenmaat</span>
-            </div>
-            <span class="text-slate-400">Contour</span>
-          </div>
+        <!-- Gecombineerde Maatvoering Checklist / Legenda -->
+        <div class="pt-2 border-t border-slate-100 space-y-2">
+          <span class="text-xxs text-slate-500 font-semibold uppercase tracking-wider block">Maten weergeven:</span>
+          <label class="flex items-center gap-2.5 text-xs text-slate-700 cursor-pointer select-none font-medium hover:text-slate-900 transition-colors">
+            <input 
+              type="checkbox" 
+              id="chkInnerDims" 
+              checked 
+              onchange="toggleInnerDims(this.checked)" 
+              class="w-4 h-4 rounded text-amber-500 focus:ring-amber-500 border-slate-300 accent-amber-500 cursor-pointer"
+            />
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
+            <span class="text-slate-800 font-medium">Binnenmaten</span>
+          </label>
+          <label class="flex items-center gap-2.5 text-xs text-slate-700 cursor-pointer select-none font-medium hover:text-slate-900 transition-colors">
+            <input 
+              type="checkbox" 
+              id="chkOuterDims" 
+              onchange="toggleOuterDims(this.checked)" 
+              class="w-4 h-4 rounded text-google-blue focus:ring-google-blue border-slate-300 accent-google-blue cursor-pointer"
+            />
+            <span class="w-2.5 h-2.5 rounded-full bg-sky-600 inline-block"></span>
+            <span class="text-slate-800 font-medium">Buitenmaten</span>
+          </label>
         </div>
       </div>
 
@@ -1627,7 +1622,13 @@
     let currentFloorplanThickness = null;
     let currentFloorplanOrientation = 'north'; // 'north' of 'front_left'
     let currentFloorplanEtage = 0; // 0 = BG, 1 = 1e Verdieping, 2 = Kap / Zolder
-    let showOuterDimensions = true;
+    let showInnerDimensions = true;  // Default: BINNENMATEN AAN
+    let showOuterDimensions = false; // Default: BUITENMATEN UIT
+
+    function toggleInnerDims(checked) {
+      showInnerDimensions = checked;
+      renderFloorplan(currentFloorplanThickness || 0.28);
+    }
     let isSidebarCollapsed = false;
 
     function toggleSidebarCollapse() {
@@ -1700,17 +1701,21 @@
       const titleEl = document.getElementById('fpActiveFloorTitle');
 
       if (etageIndex === 0) {
-        if (badge) badge.className = 'text-xxs font-medium p-2 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-start gap-2';
-        if (badgeIcon) badgeIcon.className = 'fa-solid fa-check text-emerald-600 text-xs mt-0.5';
-        if (badgeText) badgeText.textContent = 'Feitelijke buitenmuren • Kadastraal ingemeten';
+        if (badge) badge.classList.add('hidden');
         if (titleEl) titleEl.textContent = 'Begane grond (Feitelijk)';
       } else if (etageIndex === 1) {
-        if (badge) badge.className = 'text-xxs font-medium p-2 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 flex items-start gap-2';
+        if (badge) {
+          badge.classList.remove('hidden');
+          badge.className = 'text-xxs font-medium p-2 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 flex items-start gap-2';
+        }
         if (badgeIcon) badgeIcon.className = 'fa-solid fa-circle-info text-amber-600 text-xs mt-0.5';
         if (badgeText) badgeText.textContent = 'Afgeleide concepttekening • Indicatieve weergave o.b.v. hoogte & woonoppervlak';
         if (titleEl) titleEl.textContent = '1e Verdieping (Concept)';
       } else {
-        if (badge) badge.className = 'text-xxs font-medium p-2 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 flex items-start gap-2';
+        if (badge) {
+          badge.classList.remove('hidden');
+          badge.className = 'text-xxs font-medium p-2 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 flex items-start gap-2';
+        }
         if (badgeIcon) badgeIcon.className = 'fa-solid fa-circle-info text-amber-600 text-xs mt-0.5';
         if (badgeText) badgeText.textContent = 'Afgeleide concepttekening • Indicatieve weergave kap / zolderruimte';
         if (titleEl) titleEl.textContent = 'Kap / Zolder (Concept)';
@@ -1782,47 +1787,100 @@
       return res;
     }
 
-    function getEtageGeometry(bgPoints, etageIndex) {
-      if (etageIndex === 0) return bgPoints.map(p => ({ ...p }));
+    function computeFloorGeometry(basePoints, frontIdx, etageIndex, totalWoonoppervlakte) {
+      if (etageIndex === 0 || !basePoints || basePoints.length < 3) {
+        return basePoints.map(p => ({ ...p }));
+      }
 
-      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-      bgPoints.forEach(p => {
-        if (p.x < minX) minX = p.x;
-        if (p.x > maxX) maxX = p.x;
-        if (p.y < minY) minY = p.y;
-        if (p.y > maxY) maxY = p.y;
-      });
+      const n = basePoints.length;
+      let bgFootprintArea = 0;
+      for (let i = 0; i < n; i++) {
+        const next = basePoints[(i + 1) % n];
+        bgFootprintArea += basePoints[i].x * next.y - next.x * basePoints[i].y;
+      }
+      bgFootprintArea = Math.abs(bgFootprintArea) / 2;
 
-      const width = maxX - minX;
-      const height = maxY - minY;
+      // Schatting benutbare binnenvloer begane grond (ca. 88% van de gevelomtrek)
+      const approxBgInner = bgFootprintArea * 0.88;
+      const upperRemainingArea = (totalWoonoppervlakte && totalWoonoppervlakte > 20) 
+        ? Math.max(0, totalWoonoppervlakte - approxBgInner)
+        : (bgFootprintArea * 0.65);
 
+      const floorRatio = upperRemainingArea / approxBgInner;
+
+      // 1e VERDIEPING: Cognitieve Bouwkundige Redenering
       if (etageIndex === 1) {
-        // 1e Verdieping: Hoofdmassa aan de straatzijde (concept)
-        const splitX = minX + width * 0.44;
-        const pts1 = [
-          { x: bgPoints[7].x, y: bgPoints[7].y },
-          { x: bgPoints[0].x, y: bgPoints[0].y },
-          { x: minX + 3.4, y: bgPoints[0].y },
-          { x: splitX, y: bgPoints[1].y },
-          { x: splitX, y: bgPoints[6].y },
-          { x: bgPoints[6].x, y: bgPoints[6].y }
+        // Geval A: Eenvoudige rechthoek of volledige verdieping (rijtjeswoning / 2 volledige lagen)
+        if (n <= 4 || floorRatio >= 0.85) {
+          return basePoints.map(p => ({ ...p }));
+        }
+
+        // Geval B: Samengesteld pand met aanbouw (hoofdvolume aan straatzijde, zoals Rijksweg 153b)
+        if (frontIdx < 0 || frontIdx >= n) frontIdx = 0;
+        const pA = basePoints[frontIdx];
+        const pB = basePoints[(frontIdx + 1) % n];
+        const vx = pB.x - pA.x, vy = pB.y - pA.y;
+        const fLen = Math.hypot(vx, vy);
+
+        const pPrev = basePoints[(frontIdx - 1 + n) % n];
+        const leftLen = Math.hypot(pPrev.x - pA.x, pPrev.y - pA.y);
+
+        const pNext2 = basePoints[(frontIdx + 2) % n];
+        const rightLen = Math.hypot(pNext2.x - pB.x, pNext2.y - pB.y);
+
+        // Als beide hoeken een natuurlijke bouwnis vormen tussen 4.5m en 10.0m:
+        if (leftLen >= 4.5 && leftLen <= 10.0 && rightLen >= 4.5 && rightLen <= 10.0) {
+          return [
+            { x: pA.x, y: pA.y },
+            { x: pPrev.x, y: pPrev.y },
+            { x: pNext2.x, y: pNext2.y },
+            { x: pB.x, y: pB.y }
+          ];
+        }
+
+        let depth = 6.0;
+        if (leftLen >= 4.5 && leftLen <= 10.0) depth = leftLen;
+        else if (rightLen >= 4.5 && rightLen <= 10.0) depth = rightLen;
+        else if (upperRemainingArea > 20 && fLen > 2) depth = Math.max(5.0, Math.min(10.0, upperRemainingArea / fLen));
+
+        const ux = vx / fLen, uy = vy / fLen;
+        const nx1 = -uy, ny1 = ux;
+        const cx = basePoints.reduce((s, p) => s + p.x, 0) / n;
+        const cy = basePoints.reduce((s, p) => s + p.y, 0) / n;
+        const dot1 = (cx - (pA.x + pB.x)/2) * nx1 + (cy - (pA.y + pB.y)/2) * ny1;
+        const inNx = dot1 >= 0 ? nx1 : -nx1;
+        const inNy = dot1 >= 0 ? ny1 : -ny1;
+
+        return [
+          { x: pA.x, y: pA.y },
+          { x: pA.x + inNx * depth, y: pA.y + inNy * depth },
+          { x: pB.x + inNx * depth, y: pB.y + inNy * depth },
+          { x: pB.x, y: pB.y }
         ];
-        return simplifyCollinearPoints(pts1, 4.0);
       }
 
+      // 2e VERDIEPING / KAP: NEN 2580 Stahoogte onder schuin dak (1.50m lijn)
       if (etageIndex === 2) {
-        // Zolder / Kap: stahoogte onder schuin dak (concept)
-        const splitX = minX + width * 0.35;
-        const insetY = height * 0.32;
-        const pts2 = [
-          { x: minX + 2.0, y: minY + insetY },
-          { x: minX + 2.0, y: maxY - insetY },
-          { x: splitX, y: maxY - insetY },
-          { x: splitX, y: minY + insetY }
-        ];
-        return pts2;
+        const f1 = computeFloorGeometry(basePoints, frontIdx, 1, totalWoonoppervlakte);
+        if (f1.length === 4) {
+          const p1 = f1[0], p2 = f1[1], p3 = f1[2], p4 = f1[3];
+          const inset = 1.35; // 1.35m inspringing vanaf de gootzijde
+          const vDepthX = (p2.x - p1.x), vDepthY = (p2.y - p1.y);
+          const dLen = Math.hypot(vDepthX, vDepthY);
+          if (dLen > inset * 2.2) {
+            const uDx = vDepthX / dLen, uDy = vDepthY / dLen;
+            return [
+              { x: p1.x + uDx * inset, y: p1.y + uDy * inset },
+              { x: p2.x - uDx * inset, y: p2.y - uDy * inset },
+              { x: p3.x - uDx * inset, y: p3.y - uDy * inset },
+              { x: p4.x + uDx * inset, y: p4.y + uDy * inset }
+            ];
+          }
+        }
+        return f1.map(p => ({ ...p }));
       }
-      return bgPoints.map(p => ({ ...p }));
+
+      return basePoints.map(p => ({ ...p }));
     }
 
     function renderFloorplan(d) {
@@ -1872,34 +1930,27 @@
       // Collineaire vereenvoudiging van Begane Grond
       basePts = simplifyCollinearPoints(basePts, 4.0);
 
-      // Verkrijg geometrie van geselecteerde verdieping
-      let pts = getEtageGeometry(basePts, currentFloorplanEtage);
-      const n = pts.length;
-      if (n < 3) return;
-
-      const cX = pts.reduce((s, p) => s + p.x, 0) / n;
-      const cY = pts.reduce((s, p) => s + p.y, 0) / n;
-
-      // 3. Detecteer voorgevel (straatgevel) op basis van Street View heading
+      // 3. Detecteer voorgevel (straatgevel) op Begane Grond
       const svHeading = state.streetViewHeading || 92.4;
       const rad = svHeading * Math.PI / 180;
       const toStreetX = -Math.sin(rad);
       const toStreetY = Math.cos(rad);
 
+      const baseN = basePts.length;
+      let baseArea = 0;
+      for (let j = 0; j < baseN; j++) baseArea += (basePts[j].x * basePts[(j+1)%baseN].y - basePts[(j+1)%baseN].x * basePts[j].y);
+      const baseSign = (baseArea < 0) ? -1 : 1;
+
       let frontWallIdx = -1;
       let bestScore = -Infinity;
-      let tempArea = 0;
-      for (let j = 0; j < n; j++) tempArea += (pts[j].x * pts[(j+1)%n].y - pts[(j+1)%n].x * pts[j].y);
-      const tempSign = (tempArea < 0) ? -1 : 1;
-
-      for (let i = 0; i < n; i++) {
-        const p1 = pts[i];
-        const p2 = pts[(i + 1) % n];
+      for (let i = 0; i < baseN; i++) {
+        const p1 = basePts[i];
+        const p2 = basePts[(i + 1) % baseN];
         const vx = p2.x - p1.x;
         const vy = p2.y - p1.y;
         const len = Math.hypot(vx, vy);
-        const outNx = vy / len * tempSign;
-        const outNy = -vx / len * tempSign;
+        const outNx = vy / len * baseSign;
+        const outNy = -vx / len * baseSign;
         const dot = outNx * toStreetX + outNy * toStreetY;
         const score = dot * Math.sqrt(len);
         if (score > bestScore) {
@@ -1908,16 +1959,25 @@
         }
       }
 
-      // 4. Oriëntatie & Rotatie: 'north' (Noord boven) vs 'front_left' (Voorzijde naar links)
+      // 4. Verkrijg geometrie van geselecteerde verdieping (cognitief bouwkundig model)
+      const totalWoonopp = state.logistics.oppervlakte || 0;
+      let pts = computeFloorGeometry(basePts, frontWallIdx, currentFloorplanEtage, totalWoonopp);
+      const n = pts.length;
+      if (n < 3) return;
+
+      const cX = pts.reduce((s, p) => s + p.x, 0) / n;
+      const cY = pts.reduce((s, p) => s + p.y, 0) / n;
+
+      // 5. Oriëntatie & Rotatie: 'north' (Noord boven) vs 'front_left' (Voorzijde naar links)
       let rotAngle = 0;
       if (currentFloorplanOrientation === 'front_left' && frontWallIdx >= 0) {
-        const fp1 = pts[frontWallIdx];
-        const fp2 = pts[(frontWallIdx + 1) % n];
+        const fp1 = basePts[frontWallIdx];
+        const fp2 = basePts[(frontWallIdx + 1) % baseN];
         const fvx = fp2.x - fp1.x;
         const fvy = fp2.y - fp1.y;
         const flen = Math.hypot(fvx, fvy);
-        const fnx = fvy / flen * tempSign;
-        const fny = -fvx / flen * tempSign;
+        const fnx = fvy / flen * baseSign;
+        const fny = -fvx / flen * baseSign;
         const normAngle = Math.atan2(fny, fnx);
         rotAngle = Math.PI - normAngle; // Roteert voorgevel normaal exact naar links (-X, hoek PI)
       }
@@ -1943,7 +2003,26 @@
         }));
       }
 
-      // 5. Binnenwanden offset (atomaire inwaartse bissectrice)
+      // Achtergrond contour van begane grond uitbouw bij bovenverdiepingen
+      let bgExtensionSvg = '';
+      if (currentFloorplanEtage > 0 && n < baseN) {
+        let rotBasePts = basePts;
+        if (rotAngle !== 0) {
+          const cosR = Math.cos(rotAngle);
+          const sinR = Math.sin(rotAngle);
+          rotBasePts = basePts.map(p => ({
+            x: cX + (p.x - cX) * cosR - (p.y - cY) * sinR,
+            y: cY + (p.x - cX) * sinR + (p.y - cY) * cosR
+          }));
+        }
+        const bgExtPath = rotBasePts.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x.toFixed(3)} ${p.y.toFixed(3)}`).join(' ') + ' Z';
+        bgExtensionSvg = `
+          <!-- Begane grond omtrek (uitbouw / plat dak) -->
+          <path d="${bgExtPath}" fill="#f8fafc" stroke="#cbd5e1" stroke-width="0.08" stroke-dasharray="0.3,0.15" stroke-linejoin="round" />
+        `;
+      }
+
+      // 6. Binnenwanden offset (atomaire inwaartse bissectrice)
       let signedArea = 0;
       for (let i = 0; i < n; i++) {
         const p1 = pts[i];
@@ -2021,7 +2100,27 @@
       const outerPath = pts.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x.toFixed(3)} ${p.y.toFixed(3)}`).join(' ') + ' Z';
       const innerPath = innerPts.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x.toFixed(3)} ${p.y.toFixed(3)}`).join(' ') + ' Z';
 
-      // 6. Maten en Maatlijnen genereren
+      // Vind de wand die het meest naar de straat wijst voor de voorgevelbadge
+      let floorFrontWallIdx = 0;
+      let bestFrontDot = -Infinity;
+      for (let i = 0; i < n; i++) {
+        const p1 = pts[i];
+        const p2 = pts[(i + 1) % n];
+        const vx = p2.x - p1.x;
+        const vy = p2.y - p1.y;
+        const len = Math.hypot(vx, vy);
+        if (len < 0.6) continue;
+        const outNx = vy / len * sign;
+        const outNy = -vx / len * sign;
+        // In geroteerde toestand wijst de straat naar links (-1, 0), anders (toStreetX, toStreetY)
+        const dot = (rotAngle !== 0) ? -outNx : (outNx * toStreetX + outNy * toStreetY);
+        if (dot > bestFrontDot) {
+          bestFrontDot = dot;
+          floorFrontWallIdx = i;
+        }
+      }
+
+      // 7. Maten en Maatlijnen genereren
       let dimSvg = '';
       for (let i = 0; i < n; i++) {
         const p1 = pts[i];
@@ -2048,8 +2147,8 @@
         const hasConcaveCorner = c1Concave || c2Concave;
         const placeInnerOutside = !hasConcaveCorner;
 
-        // Buitenmaten (checkbox gestuurd: showOuterDimensions)
-        if (showOuterDimensions) {
+        // Buitenmaten (checkbox: showOuterDimensions)
+        if (showOuterDimensions && outLen >= 0.8) {
           const outTrack1 = placeInnerOutside ? 0.70 : 0.82;
           let d1x = p1.x + outNx * outTrack1;
           let d1y = p1.y + outNy * outTrack1;
@@ -2070,8 +2169,7 @@
           dimSvg += `
             <!-- Buitenmaat ${i} -->
             <line x1="${p1.x.toFixed(3)}" y1="${p1.y.toFixed(3)}" x2="${(d1x + outNx * 0.12).toFixed(3)}" y2="${(d1y + outNy * 0.12).toFixed(3)}" stroke="#0284c7" stroke-width="0.025" opacity="0.45" />
-            <line x1="${p2.x.toFixed(3)}" y1="${p2.y.toFixed(3)}" x2="${(d2x + outNx * 0.12).toFixed(3)}" y2="${(d2y + outNy * 0.12).toFixed(3)}" stroke="#0284c7" stroke-width="0.025" opacity="0.45" />
-            <line x1="${d1x.toFixed(3)}" y1="${d1y.toFixed(3)}" x2="${d2x.toFixed(3)}" y2="${d2y.toFixed(3)}" stroke="#0284c7" stroke-width="0.05" marker-start="url(#dotBlue)" marker-end="url(#dotBlue)" />
+            <line x1="${p2.x.toFixed(3)}" y1="${p2.y.toFixed(3)}" x2="${d2x.toFixed(3)}" y2="${d2y.toFixed(3)}" stroke="#0284c7" stroke-width="0.05" marker-start="url(#dotBlue)" marker-end="url(#dotBlue)" />
             <g transform="translate(${mid1x.toFixed(3)}, ${mid1y.toFixed(3)}) rotate(${angle.toFixed(1)})">
               <rect x="-1.15" y="-0.32" width="2.3" height="0.64" rx="0.18" fill="#f0f9ff" stroke="#0284c7" stroke-width="0.04" />
               <text y="0.14" fill="#0369a1" font-size="0.42" font-family="monospace" font-weight="bold" text-anchor="middle">${outLen.toFixed(2)}m</text>
@@ -2079,63 +2177,65 @@
           `;
         }
 
-        // Binnenmaten (ALTIJD getoond)
-        const t1 = (q1.x - p1.x) * ux + (q1.y - p1.y) * uy;
-        const t2 = (q2.x - p1.x) * ux + (q2.y - p1.y) * uy;
-        const projQ1x = p1.x + ux * t1;
-        const projQ1y = p1.y + uy * t1;
-        const projQ2x = p1.x + ux * t2;
-        const projQ2y = p1.y + uy * t2;
-        const inLen = Math.hypot(projQ2x - projQ1x, projQ2y - projQ1y);
+        // Binnenmaten (checkbox: showInnerDimensions, default AAN)
+        if (showInnerDimensions) {
+          const t1 = (q1.x - p1.x) * ux + (q1.y - p1.y) * uy;
+          const t2 = (q2.x - p1.x) * ux + (q2.y - p1.y) * uy;
+          const projQ1x = p1.x + ux * t1;
+          const projQ1y = p1.y + uy * t1;
+          const projQ2x = p1.x + ux * t2;
+          const projQ2y = p1.y + uy * t2;
+          const inLen = Math.hypot(projQ2x - projQ1x, projQ2y - projQ1y);
 
-        if (placeInnerOutside) {
-          const outTrack2 = showOuterDimensions ? 1.55 : 0.85;
-          const id1x = projQ1x + outNx * outTrack2;
-          const id1y = projQ1y + outNy * outTrack2;
-          const id2x = projQ2x + outNx * outTrack2;
-          const id2y = projQ2y + outNy * outTrack2;
-          const mid2x = (id1x + id2x) / 2;
-          const mid2y = (id1y + id2y) / 2;
+          if (placeInnerOutside) {
+            const outTrack2 = showOuterDimensions ? 1.55 : 0.85;
+            const id1x = projQ1x + outNx * outTrack2;
+            const id1y = projQ1y + outNy * outTrack2;
+            const id2x = projQ2x + outNx * outTrack2;
+            const id2y = projQ2y + outNy * outTrack2;
+            const mid2x = (id1x + id2x) / 2;
+            const mid2y = (id1y + id2y) / 2;
 
-          dimSvg += `
-            <!-- Binnenmaat ${i} (buitenwerks) -->
-            <line x1="${q1.x.toFixed(3)}" y1="${q1.y.toFixed(3)}" x2="${(id1x + outNx * 0.12).toFixed(3)}" y2="${(id1y + outNy * 0.12).toFixed(3)}" stroke="#d97706" stroke-width="0.025" stroke-dasharray="0.12 0.12" opacity="0.65" />
-            <line x1="${q2.x.toFixed(3)}" y1="${q2.y.toFixed(3)}" x2="${(id2x + outNx * 0.12).toFixed(3)}" y2="${(id2y + outNy * 0.12).toFixed(3)}" stroke="#d97706" stroke-width="0.025" stroke-dasharray="0.12 0.12" opacity="0.65" />
-            <line x1="${id1x.toFixed(3)}" y1="${id1y.toFixed(3)}" x2="${id2x.toFixed(3)}" y2="${id2y.toFixed(3)}" stroke="#d97706" stroke-width="0.05" marker-start="url(#dotAmber)" marker-end="url(#dotAmber)" />
-            <g transform="translate(${mid2x.toFixed(3)}, ${mid2y.toFixed(3)}) rotate(${angle.toFixed(1)})">
-              <rect x="-1.15" y="-0.32" width="2.3" height="0.64" rx="0.18" fill="#fffbeb" stroke="#d97706" stroke-width="0.04" />
-              <text y="0.14" fill="#b45309" font-size="0.42" font-family="monospace" font-weight="bold" text-anchor="middle">${inLen.toFixed(2)}m</text>
-            </g>
-          `;
-        } else {
-          const inDist = 0.55;
-          const inNx = -vy / outLen * sign;
-          const inNy = vx / outLen * sign;
-          const id1x = q1.x + inNx * inDist;
-          const id1y = q1.y + inNy * inDist;
-          const id2x = q2.x + inNx * inDist;
-          const id2y = q2.y + inNy * inDist;
-          const mid2x = (id1x + id2x) / 2;
-          const mid2y = (id1y + id2y) / 2;
-          const ivx = q2.x - q1.x;
-          const ivy = q2.y - q1.y;
-          let angleIn = Math.atan2(ivy, ivx) * 180 / Math.PI;
-          if (angleIn > 90 || angleIn < -90) angleIn += 180;
+            dimSvg += `
+              <!-- Binnenmaat ${i} (buitenwerks) -->
+              <line x1="${q1.x.toFixed(3)}" y1="${q1.y.toFixed(3)}" x2="${(id1x + outNx * 0.12).toFixed(3)}" y2="${(id1y + outNy * 0.12).toFixed(3)}" stroke="#d97706" stroke-width="0.025" stroke-dasharray="0.12 0.12" opacity="0.65" />
+              <line x1="${q2.x.toFixed(3)}" y1="${q2.y.toFixed(3)}" x2="${(id2x + outNx * 0.12).toFixed(3)}" y2="${(id2y + outNy * 0.12).toFixed(3)}" stroke="#d97706" stroke-width="0.025" stroke-dasharray="0.12 0.12" opacity="0.65" />
+              <line x1="${id1x.toFixed(3)}" y1="${id1y.toFixed(3)}" x2="${id2x.toFixed(3)}" y2="${id2y.toFixed(3)}" stroke="#d97706" stroke-width="0.05" marker-start="url(#dotAmber)" marker-end="url(#dotAmber)" />
+              <g transform="translate(${mid2x.toFixed(3)}, ${mid2y.toFixed(3)}) rotate(${angle.toFixed(1)})">
+                <rect x="-1.15" y="-0.32" width="2.3" height="0.64" rx="0.18" fill="#fffbeb" stroke="#d97706" stroke-width="0.04" />
+                <text y="0.14" fill="#b45309" font-size="0.42" font-family="monospace" font-weight="bold" text-anchor="middle">${inLen.toFixed(2)}m</text>
+              </g>
+            `;
+          } else {
+            const inDist = 0.55;
+            const inNx = -vy / outLen * sign;
+            const inNy = vx / outLen * sign;
+            const id1x = q1.x + inNx * inDist;
+            const id1y = q1.y + inNy * inDist;
+            const id2x = q2.x + inNx * inDist;
+            const id2y = q2.y + inNy * inDist;
+            const mid2x = (id1x + id2x) / 2;
+            const mid2y = (id1y + id2y) / 2;
+            const ivx = q2.x - q1.x;
+            const ivy = q2.y - q1.y;
+            let angleIn = Math.atan2(ivy, ivx) * 180 / Math.PI;
+            if (angleIn > 90 || angleIn < -90) angleIn += 180;
 
-          dimSvg += `
-            <!-- Binnenmaat ${i} (inwendig) -->
-            <line x1="${q1.x.toFixed(3)}" y1="${q1.y.toFixed(3)}" x2="${(id1x + inNx * 0.1).toFixed(3)}" y2="${(id1y + inNy * 0.1).toFixed(3)}" stroke="#d97706" stroke-width="0.02" opacity="0.45" />
-            <line x1="${q2.x.toFixed(3)}" y1="${q2.y.toFixed(3)}" x2="${(id2x + inNx * 0.1).toFixed(3)}" y2="${(id2y + inNy * 0.1).toFixed(3)}" stroke="#d97706" stroke-width="0.02" opacity="0.45" />
-            <line x1="${id1x.toFixed(3)}" y1="${id1y.toFixed(3)}" x2="${id2x.toFixed(3)}" y2="${id2y.toFixed(3)}" stroke="#d97706" stroke-width="0.05" marker-start="url(#dotAmber)" marker-end="url(#dotAmber)" />
-            <g transform="translate(${mid2x.toFixed(3)}, ${mid2y.toFixed(3)}) rotate(${angleIn.toFixed(1)})">
-              <rect x="-1.15" y="-0.32" width="2.3" height="0.64" rx="0.18" fill="#fffbeb" stroke="#d97706" stroke-width="0.04" />
-              <text y="0.14" fill="#b45309" font-size="0.42" font-family="monospace" font-weight="bold" text-anchor="middle">${inLen.toFixed(2)}m</text>
-            </g>
-          `;
+            dimSvg += `
+              <!-- Binnenmaat ${i} (inwendig) -->
+              <line x1="${q1.x.toFixed(3)}" y1="${q1.y.toFixed(3)}" x2="${(id1x + inNx * 0.1).toFixed(3)}" y2="${(id1y + inNy * 0.1).toFixed(3)}" stroke="#d97706" stroke-width="0.02" opacity="0.45" />
+              <line x1="${q2.x.toFixed(3)}" y1="${q2.y.toFixed(3)}" x2="${(id2x + inNx * 0.1).toFixed(3)}" y2="${(id2y + inNy * 0.1).toFixed(3)}" stroke="#d97706" stroke-width="0.02" opacity="0.45" />
+              <line x1="${id1x.toFixed(3)}" y1="${id1y.toFixed(3)}" x2="${id2x.toFixed(3)}" y2="${id2y.toFixed(3)}" stroke="#d97706" stroke-width="0.05" marker-start="url(#dotAmber)" marker-end="url(#dotAmber)" />
+              <g transform="translate(${mid2x.toFixed(3)}, ${mid2y.toFixed(3)}) rotate(${angleIn.toFixed(1)})">
+                <rect x="-1.15" y="-0.32" width="2.3" height="0.64" rx="0.18" fill="#fffbeb" stroke="#d97706" stroke-width="0.04" />
+                <text y="0.14" fill="#b45309" font-size="0.42" font-family="monospace" font-weight="bold" text-anchor="middle">${inLen.toFixed(2)}m</text>
+              </g>
+            `;
+          }
         }
 
         // VOORZIJDE (STRAAT) BADGE
-        if (i === frontWallIdx) {
+        if (i === floorFrontWallIdx) {
           const fDist = (showOuterDimensions && placeInnerOutside ? 1.55 : 0.85) + 0.95;
           const fX = (p1.x + p2.x) / 2 + outNx * fDist;
           const fY = (p1.y + p2.y) / 2 + outNy * fDist;
@@ -2154,8 +2254,9 @@
       wrapper.innerHTML = `
         <svg viewBox="${viewBoxX.toFixed(2)} ${viewBoxY.toFixed(2)} ${width.toFixed(2)} ${height.toFixed(2)}" class="w-full h-full" preserveAspectRatio="xMidYMid meet">
           <defs>
-            <pattern id="wallHatch" width="0.4" height="0.4" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
-              <line x1="0" y1="0" x2="0" y2="0.4" stroke="#cbd5e1" stroke-width="0.08" />
+            <!-- Subtiel architectuurraster als SVG achtergrond (onderste laag van alles) -->
+            <pattern id="archGrid" width="1" height="1" patternUnits="userSpaceOnUse">
+              <path d="M 1 0 L 0 0 0 1" fill="none" stroke="#f1f5f9" stroke-width="0.03" />
             </pattern>
             <marker id="dotBlue" markerWidth="4" markerHeight="4" refX="2" refY="2">
               <circle cx="2" cy="2" r="1.3" fill="#0284c7" />
@@ -2165,19 +2266,21 @@
             </marker>
           </defs>
 
-          <!-- Buitenmuren schil -->
-          <path d="${outerPath}" fill="#f8fafc" stroke="#1e293b" stroke-width="0.16" stroke-linejoin="round" />
+          <!-- 1. Achtergrond raster (onderste laag van het hele canvas) -->
+          <rect x="${viewBoxX.toFixed(2)}" y="${viewBoxY.toFixed(2)}" width="${width.toFixed(2)}" height="${height.toFixed(2)}" fill="url(#archGrid)" />
 
-          <!-- Spouwruimte arcering tussen buiten- en binnenblad -->
-          <path d="${outerPath} ${innerPath}" fill="url(#wallHatch)" fill-rule="evenodd" />
+          ${bgExtensionSvg}
 
-          <!-- Binnenmuren (blauw gestreept) -->
-          <path d="${innerPath}" fill="#ffffff" stroke="#0284c7" stroke-width="0.08" stroke-dasharray="0.3,0.15" stroke-linejoin="round" />
+          <!-- 2. Vloeroppervlak binnen (dekkend wit tegen het raster) -->
+          <path d="${outerPath}" fill="#ffffff" />
 
-          <!-- Maatvoeringen -->
+          <!-- 3. Massieve architectonische gevelmuur op werkelijke schaaldikte (spouwmuur massief donker leisteen) -->
+          <path d="${outerPath} ${innerPath}" fill="#334155" fill-rule="evenodd" stroke="#0f172a" stroke-width="0.04" stroke-linejoin="round" />
+
+          <!-- 4. Maatvoeringen -->
           ${dimSvg}
 
-          <!-- Centrum Etage Badge -->
+          <!-- 5. Centrum Etage Badge (dekkend wit met schaduw) -->
           <g transform="translate(${cX.toFixed(2)}, ${cY.toFixed(2)})" text-anchor="middle" pointer-events="none">
             <rect x="-2.2" y="-0.5" width="4.4" height="1.0" rx="0.3" fill="#ffffff" stroke="#cbd5e1" stroke-width="0.04" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.08))" />
             <text y="0.2" fill="#475569" font-size="0.42" font-weight="bold" font-family="sans-serif">${floorName}</text>
