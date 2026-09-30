@@ -99,10 +99,10 @@
           id="btnFloor2" 
           onclick="setFloorplanEtage(2)" 
           class="fp-floor-btn w-11 h-11 flex flex-col items-center justify-center border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer text-slate-600" 
-          title="Kap / Zolder (Concept)"
+          title="2e Verdieping / Opbouw (Concept)"
         >
           <span class="text-xs font-bold">3</span>
-          <span class="text-[9px] text-slate-400 -mt-0.5">Kap</span>
+          <span class="text-[9px] text-slate-400 -mt-0.5">2e</span>
         </button>
         <button 
           id="btnFloor1" 
@@ -161,10 +161,24 @@
 
       <!-- Floating Controls Panel (Right Bottom) -->
       <div class="absolute right-4 bottom-6 z-20 bg-white/95 backdrop-blur-md rounded-2xl shadow-gmap border border-slate-200 p-3.5 space-y-3 w-72 max-w-[calc(100vw-32px)]">
-        <!-- Concept Disclaimer Badge (alleen zichtbaar bij bovenverdiepingen) -->
-        <div id="fpFloorBadge" class="hidden text-xxs font-medium p-2 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 flex items-start gap-2">
-          <i id="fpFloorBadgeIcon" class="fa-solid fa-circle-info text-amber-600 text-xs mt-0.5"></i>
-          <span id="fpFloorBadgeText">Afgeleide concepttekening • Indicatieve weergave o.b.v. hoogte & woonoppervlak</span>
+        <!-- Concept Disclaimer Badge (compact & subtiel Google chip design) -->
+        <div id="fpFloorBadge" class="hidden text-[10.5px] font-medium py-1 px-2.5 rounded-lg bg-amber-50/90 text-amber-800 border border-amber-200/60 flex items-center gap-1.5 leading-snug">
+          <i id="fpFloorBadgeIcon" class="fa-solid fa-circle-info text-amber-600 text-[11px] shrink-0"></i>
+          <span id="fpFloorBadgeText" class="truncate">Afgeleid concept</span>
+        </div>
+
+        <!-- Dakvorm Dropdown (alleen zichtbaar bij 2e verdieping) -->
+        <div id="fpRoofTypeContainer" class="space-y-1 hidden">
+          <label for="fpRoofTypeSelect" class="text-xxs text-slate-500 font-medium block">Dakvorm / 2e verdieping:</label>
+          <select 
+            id="fpRoofTypeSelect" 
+            onchange="setFloorplanRoofType(this.value)" 
+            class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-2.5 py-1.5 outline-none focus:border-google-blue focus:ring-1 focus:ring-google-blue cursor-pointer"
+          >
+            <option value="auto">Auto (3D BAG Morfologie)</option>
+            <option value="flat">Plat dak / Opbouw &amp; Terras</option>
+            <option value="slanted">Zadeldak (Kap / Schuin dak)</option>
+          </select>
         </div>
 
         <!-- Muurdikte Dropdown -->
@@ -1053,9 +1067,35 @@
             const a = main.attributes;
             if (a.b3_h_dak_max != null && a.b3_h_maaiveld != null) {
               state.logistics.nokhoogte = +(a.b3_h_dak_max - a.b3_h_maaiveld).toFixed(1);
+              state.logistics.goothoogte = a.b3_h_dak_min != null ? +(a.b3_h_dak_min - a.b3_h_maaiveld).toFixed(1) : null;
               state.logistics.gebouwVolume = a.b3_volume_lod22 ? Math.round(a.b3_volume_lod22) : null;
               state.logistics.bouwlagen = a.b3_bouwlagen || null;
-              state.logistics.dakType = a.b3_dak_type === 'slanted' ? 'Zadeldak' : (a.b3_dak_type === 'flat' ? 'Plat dak' : 'Samengesteld');
+              
+              const oppPlat = a.b3_opp_dak_plat ? Math.round(a.b3_opp_dak_plat) : 0;
+              const oppSchuin = a.b3_opp_dak_schuin ? Math.round(a.b3_opp_dak_schuin) : 0;
+              state.logistics.oppDakPlat = oppPlat;
+              state.logistics.oppDakSchuin = oppSchuin;
+              state.logistics.hellingshoek = a.b3_hellingshoek != null ? Math.round(a.b3_hellingshoek) : 35;
+
+              if (oppPlat > 15 && oppSchuin > 15) {
+                state.logistics.dakType = `Samengesteld (${oppPlat}m² plat / ${oppSchuin}m² schuin)`;
+                state.logistics.inferredRoofType = 'composite';
+              } else if (oppPlat > oppSchuin * 1.5) {
+                state.logistics.dakType = `Plat dak (${oppPlat}m²)`;
+                state.logistics.inferredRoofType = 'flat';
+              } else {
+                state.logistics.dakType = `Zadeldak (${oppSchuin}m²)`;
+                state.logistics.inferredRoofType = 'slanted';
+              }
+
+              // Update dakvorm dropdown label
+              const roofSelect = document.getElementById('fpRoofTypeSelect');
+              if (roofSelect) {
+                const autoOpt = roofSelect.querySelector('option[value="auto"]');
+                if (autoOpt) {
+                  autoOpt.textContent = `Auto (3D BAG: ${oppPlat}m² plat / ${oppSchuin}m² schuin)`;
+                }
+              }
             }
           }
         }
@@ -1631,8 +1671,14 @@
     let currentFloorplanThickness = null;
     let currentFloorplanOrientation = 'north'; // 'north' of 'front_left'
     let currentFloorplanEtage = 0; // 0 = BG, 1 = 1e Verdieping, 2 = Kap / Zolder
+    let currentFloorplanRoofType = 'auto'; // 'auto' | 'flat' | 'slanted'
     let showInnerDimensions = true;  // Default: BINNENMATEN AAN
     let showOuterDimensions = false; // Default: BUITENMATEN UIT
+
+    function setFloorplanRoofType(type) {
+      currentFloorplanRoofType = type;
+      renderFloorplan(currentFloorplanThickness || 0.28);
+    }
 
     function toggleInnerDims(checked) {
       showInnerDimensions = checked;
@@ -1712,49 +1758,57 @@
         }
       });
 
-      // Update disclaimer badge, compass & titles
+      // Update disclaimer badge, compass, roof selector & titles
       const badge = document.getElementById('fpFloorBadge');
       const badgeIcon = document.getElementById('fpFloorBadgeIcon');
       const badgeText = document.getElementById('fpFloorBadgeText');
       const titleEl = document.getElementById('fpActiveFloorTitle');
       const compassBox = document.getElementById('fpCompassContainer');
       const dimCard = document.getElementById('chkInnerDims')?.closest('.bg-white\\/95');
+      const roofBox = document.getElementById('fpRoofTypeContainer');
 
       if (etageIndex === 0) {
         if (badge) badge.classList.add('hidden');
         if (titleEl) titleEl.textContent = 'Begane grond (Feitelijk)';
         if (compassBox) compassBox.classList.remove('hidden');
         if (dimCard) dimCard.classList.remove('hidden');
+        if (roofBox) roofBox.classList.add('hidden');
       } else if (etageIndex === 1) {
         if (badge) {
           badge.classList.remove('hidden');
-          badge.className = 'text-xxs font-medium p-2 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 flex items-start gap-2';
+          badge.className = 'text-[10.5px] font-medium py-1 px-2.5 rounded-lg bg-amber-50/90 text-amber-800 border border-amber-200/60 flex items-center gap-1.5 leading-snug';
+          badge.title = '61 m² binnenvloer o.b.v. BAG en houten balklaag';
         }
-        if (badgeIcon) badgeIcon.className = 'fa-solid fa-circle-info text-amber-600 text-xs mt-0.5';
-        if (badgeText) badgeText.textContent = 'Afgeleid concept • Hoofdvolume straatzijde (61 m² binnenvloer o.b.v. BAG en houten balklaag)';
+        if (badgeIcon) badgeIcon.className = 'fa-solid fa-circle-info text-amber-600 text-[11px] shrink-0';
+        if (badgeText) badgeText.textContent = 'Afgeleid concept • 1e verdieping';
         if (titleEl) titleEl.textContent = '1e Verdieping (Concept)';
         if (compassBox) compassBox.classList.remove('hidden');
         if (dimCard) dimCard.classList.remove('hidden');
+        if (roofBox) roofBox.classList.add('hidden');
       } else if (etageIndex === 2) {
         if (badge) {
           badge.classList.remove('hidden');
-          badge.className = 'text-xxs font-medium p-2 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 flex items-start gap-2';
+          badge.className = 'text-[10.5px] font-medium py-1 px-2.5 rounded-lg bg-amber-50/90 text-amber-800 border border-amber-200/60 flex items-center gap-1.5 leading-snug';
+          badge.title = 'Inschatting o.b.v. 3D BAG AHN Lidar (72 m² plat dak) en NEN 2580';
         }
-        if (badgeIcon) badgeIcon.className = 'fa-solid fa-circle-info text-amber-600 text-xs mt-0.5';
-        if (badgeText) badgeText.textContent = 'Afgeleid concept • Kap / zolder (NEN 2580 stahoogte ≥ 1.50m tussen dakgoten)';
-        if (titleEl) titleEl.textContent = 'Kap / Zolder (Concept)';
+        if (badgeIcon) badgeIcon.className = 'fa-solid fa-circle-info text-amber-600 text-[11px] shrink-0';
+        if (badgeText) badgeText.textContent = 'Afgeleid concept • 2e verdieping';
+        if (titleEl) titleEl.textContent = '2e Verdieping (Concept)';
         if (compassBox) compassBox.classList.remove('hidden');
         if (dimCard) dimCard.classList.remove('hidden');
+        if (roofBox) roofBox.classList.remove('hidden');
       } else if (etageIndex === 'section') {
         if (badge) {
           badge.classList.remove('hidden');
-          badge.className = 'text-xxs font-medium p-2 rounded-xl bg-sky-50 text-sky-900 border border-sky-200 flex items-start gap-2';
+          badge.className = 'text-[10.5px] font-medium py-1 px-2.5 rounded-lg bg-sky-50/90 text-sky-800 border border-sky-200/60 flex items-center gap-1.5 leading-snug';
+          badge.title = 'Gevelprofiel o.b.v. BAG nokhoogte (9.2m) en goothoogte (3.7m)';
         }
-        if (badgeIcon) badgeIcon.className = 'fa-solid fa-layer-group text-sky-600 text-xs mt-0.5';
-        if (badgeText) badgeText.textContent = 'Architectonisch gevelprofiel • Afgeleid uit BAG nokhoogte, goothoogte, bouwjaar en binnenoppervlak';
+        if (badgeIcon) badgeIcon.className = 'fa-solid fa-layer-group text-sky-600 text-[11px] shrink-0';
+        if (badgeText) badgeText.textContent = 'Gevelprofiel & doorsnede';
         if (titleEl) titleEl.textContent = 'Zijaanzicht & Doorsnede (Profiel)';
         if (compassBox) compassBox.classList.add('hidden');
         if (dimCard) dimCard.classList.add('hidden');
+        if (roofBox) roofBox.classList.add('hidden');
       }
 
       renderFloorplan(currentFloorplanThickness || 0.28);
@@ -2341,10 +2395,14 @@
         }
       }
 
-      // --- SPECIFIEKE RENDERING VOOR ZOLDER / KAP (currentFloorplanEtage === 2) ---
-      // Op zolder staan GEEN gemetselde voor- en achtergevels: dat zijn de dakgoten/schuine dakvlakken!
-      // Alleen de twee kopgevels (zijmuren) zijn gemetseld op schaaldikte d.
-      if (currentFloorplanEtage === 2 && n === 4) {
+      // Bepaal of de 2e verdieping als schuin zadeldak of als plat dak / dakopbouw gerenderd wordt
+      const isSlanted = (currentFloorplanRoofType === 'slanted') || 
+        (currentFloorplanRoofType === 'auto' && state.logistics.oppDakSchuin && state.logistics.oppDakSchuin > (state.logistics.oppDakPlat || 0) * 1.4);
+
+      // --- SPECIFIEKE RENDERING VOOR ZOLDER / KAP (ALLEEN BIJ SCHUIN DAK!) ---
+      // Alleen bij een geverifieerd zadeldak tekenen we schuine dakvlakken met goten en knieschotten.
+      // Bij plat dak of samengesteld dak (zoals Rijksweg 153B met 72m² plat dak) tekenen we een volwaardige opbouw met dakterras!
+      if (currentFloorplanEtage === 2 && n === 4 && isSlanted) {
         const f = floorFrontWallIdx;
         const r = (f + 2) % 4;
         const s1 = (f + 1) % 4;
@@ -2632,7 +2690,11 @@
         }
       }
 
-      const floorName = (currentFloorplanEtage === 0) ? 'BEGANE GROND' : (currentFloorplanEtage === 1 ? '1e VERDIEPING (CONCEPT)' : 'ZOLDER / KAP (CONCEPT)');
+      const floorName = (currentFloorplanEtage === 0) 
+        ? 'BEGANE GROND' 
+        : (currentFloorplanEtage === 1 
+            ? '1e VERDIEPING (CONCEPT)' 
+            : (isSlanted ? 'ZOLDER / KAP (CONCEPT)' : '2e VERDIEPING • OPBOUW (CONCEPT)'));
 
       wrapper.innerHTML = `
         <svg viewBox="${viewBoxX.toFixed(2)} ${viewBoxY.toFixed(2)} ${width.toFixed(2)} ${height.toFixed(2)}" class="w-full h-full" preserveAspectRatio="xMidYMid meet">
