@@ -562,11 +562,11 @@
         <!-- Background Architectural Blueprint Grid -->
         <div class="absolute inset-0 bg-[linear-gradient(to_right,#1e293b22_1px,transparent_1px),linear-gradient(to_bottom,#1e293b22_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none"></div>
 
-        <!-- Compass North Arrow -->
-        <div class="absolute top-4 right-4 bg-slate-900/80 border border-slate-700/60 backdrop-blur-xs rounded-lg px-2.5 py-1.5 flex items-center gap-2 text-slate-300 text-xs shadow-md pointer-events-none z-10">
-          <i class="fa-solid fa-compass text-teal-400"></i>
-          <span class="font-semibold text-xxs tracking-wider">NOORD ↑</span>
-        </div>
+        <!-- Compass North / CAD Orientation Button -->
+        <button id="btnFpOrientation" onclick="toggleFloorplanOrientation()" class="absolute top-4 right-4 bg-slate-900/90 hover:bg-slate-800 border border-slate-700/70 hover:border-teal-500/60 backdrop-blur-xs rounded-lg px-3 py-1.5 flex items-center gap-2 text-slate-200 hover:text-white text-xs shadow-lg transition-all cursor-pointer z-10 group" title="Klik om te wisselen tussen Geografisch Noord en Rechte CAD-oriëntatie">
+          <i id="fpCompassIcon" class="fa-solid fa-compass text-teal-400 text-sm transition-transform duration-300"></i>
+          <span id="fpOrientationText" class="font-semibold text-xxs tracking-wider">NOORD ↑ <span class="text-slate-400 font-normal hidden sm:inline">(klik voor recht)</span></span>
+        </button>
 
         <!-- Dynamic SVG Canvas -->
         <div id="floorplanSvgWrapper" class="w-full h-full flex items-center justify-center z-0">
@@ -582,7 +582,7 @@
             <span class="text-slate-400 font-medium">Muurdikte spouw:</span>
             <div class="flex items-center gap-1.5 bg-slate-900 p-1 rounded-lg border border-slate-800">
               <button onclick="setFloorplanThickness(0.25)" class="fp-thick-btn px-2.5 py-1 rounded text-xxs font-medium text-slate-300 hover:text-white transition-all" data-thick="0.25">25 cm</button>
-              <button onclick="setFloorplanThickness(0.28)" class="fp-thick-btn px-2.5 py-1 rounded text-xxs font-medium text-slate-300 hover:text-white transition-all" data-thick="0.28">28 cm</button>
+              <button onclick="setFloorplanThickness(0.28)" class="fp-thick-btn px-2.5 py-1 rounded text-xxs font-medium text-slate-300 hover:text-white transition-all" data-thick="0.28">28 cm (&lt;1975 smal)</button>
               <button onclick="setFloorplanThickness(0.30)" class="fp-thick-btn px-2.5 py-1 rounded text-xxs font-medium text-slate-300 hover:text-white transition-all" data-thick="0.30">30 cm (Standaard)</button>
               <button onclick="setFloorplanThickness(0.32)" class="fp-thick-btn px-2.5 py-1 rounded text-xxs font-medium text-slate-300 hover:text-white transition-all" data-thick="0.32">32 cm</button>
               <button onclick="setFloorplanThickness(0.35)" class="fp-thick-btn px-2.5 py-1 rounded text-xxs font-medium text-slate-300 hover:text-white transition-all" data-thick="0.35">35 cm</button>
@@ -590,7 +590,7 @@
             </div>
           </div>
           <div id="fpBouwjaarNote" class="text-xxs text-slate-400 italic">
-            Standaard spouwmuur 30 cm (in openbare data is muurdikte niet geregistreerd)
+            Standaard spouwmuur 28 cm (&lt;1975 smal)
           </div>
         </div>
 
@@ -1578,6 +1578,12 @@
     // --- PLATTEGROND BUITENMUREN, MAATVOERING & BINNENMATEN ---
     let currentFloorplanThickness = null;
     let currentFloorplanDimMode = 'all'; // 'all', 'inside', 'outside'
+    let currentFloorplanOrientation = 'north'; // 'north' of 'aligned'
+
+    function toggleFloorplanOrientation() {
+      currentFloorplanOrientation = (currentFloorplanOrientation === 'north') ? 'aligned' : 'north';
+      renderFloorplan(currentFloorplanThickness || 0.28);
+    }
 
     function setFloorplanDimMode(mode) {
       currentFloorplanDimMode = mode;
@@ -1588,17 +1594,17 @@
       if (activeBtn) {
         activeBtn.className = 'fp-dim-btn px-2.5 py-1 rounded text-xxs font-semibold bg-teal-500 text-slate-950 shadow-xs transition-all';
       }
-      renderFloorplan(currentFloorplanThickness || 0.32);
+      renderFloorplan(currentFloorplanThickness || 0.28);
     }
 
     function getTypicalWallThickness(bouwjaar) {
       const y = parseInt(bouwjaar, 10);
-      if (!y || isNaN(y)) return 0.30;
-      if (y < 1975) return 0.30; // Standaard Nederlandse spouwmuur (30 cm)
-      if (y < 1991) return 0.30;
-      if (y < 2006) return 0.32;
-      if (y < 2015) return 0.35;
-      return 0.40;
+      if (!y || isNaN(y)) return 0.28;
+      if (y < 1975) return 0.28; // Bouwjaar vóór 1975: smalle/ongeïsoleerde spouw (28 cm)
+      if (y < 1991) return 0.30; // Bouwjaar 1975-1990: eerste isolatienormen (30 cm)
+      if (y < 2006) return 0.32; // Bouwjaar 1991-2005 (32 cm)
+      if (y < 2015) return 0.35; // Bouwjaar 2006-2014 (35 cm)
+      return 0.40; // Bouwjaar 2015+ (40 cm)
     }
 
     function openFloorplanModal() {
@@ -1661,7 +1667,8 @@
       if (noteEl) {
         const dCm = Math.round(d * 100);
         const bjText = bj ? `Bouwjaar ${bj}` : 'Onbekend bouwjaar';
-        noteEl.textContent = `Muurdikte ingesteld op ${dCm} cm (${bjText} • ${dCm === 30 ? 'Nederlandse standaard spouw' : (dCm < 30 ? 'smalle spouw' : 'geïsoleerde spouw')})`;
+        const typeSpouw = dCm <= 28 ? 'smalle spouw (standaard vóór 1975)' : (dCm === 30 ? 'Nederlandse standaard spouw' : 'geïsoleerde spouw');
+        noteEl.textContent = `Muurdikte ingesteld op ${dCm} cm (${bjText} • ${typeSpouw})`;
       }
 
       // Update active state on buttons
@@ -1732,9 +1739,81 @@
         return res;
       }
 
-      const pts = simplifyCollinear(rawPts, 4.0);
+      let pts = simplifyCollinear(rawPts, 4.0);
       const n = pts.length;
       if (n < 3) return;
+
+      // Centroid en langste hoofdgevel bepalen (in ware geografische coördinaten)
+      const cX = pts.reduce((s, p) => s + p.x, 0) / n;
+      const cY = pts.reduce((s, p) => s + p.y, 0) / n;
+
+      let maxLen = 0;
+      let baseAngle = 0;
+      for (let i = 0; i < n; i++) {
+        const p1 = pts[i];
+        const p2 = pts[(i + 1) % n];
+        const len = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        if (len > maxLen) {
+          maxLen = len;
+          baseAngle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+        }
+      }
+
+      // Bepaal de voorzijde (straatgevel) op basis van de openbare weg / Street View vector
+      let frontWallIdx = -1;
+      let toStreetX = -1.0;
+      let toStreetY = 0.0;
+      if (state.svPov && typeof state.svPov.heading === 'number') {
+        const rad = state.svPov.heading * Math.PI / 180;
+        toStreetX = -Math.sin(rad);
+        toStreetY = Math.cos(rad);
+      }
+      let bestFrontScore = -Infinity;
+      let tempArea = 0;
+      for (let j = 0; j < n; j++) tempArea += (pts[j].x * pts[(j+1)%n].y - pts[(j+1)%n].x * pts[j].y);
+      const tempSign = (tempArea < 0) ? -1 : 1;
+      for (let i = 0; i < n; i++) {
+        const p1 = pts[i];
+        const p2 = pts[(i + 1) % n];
+        const vx = p2.x - p1.x;
+        const vy = p2.y - p1.y;
+        const len = Math.hypot(vx, vy);
+        const outNx = vy / len * tempSign;
+        const outNy = -vx / len * tempSign;
+        const dot = outNx * toStreetX + outNy * toStreetY;
+        const score = dot * Math.sqrt(len);
+        if (score > bestFrontScore) {
+          bestFrontScore = score;
+          frontWallIdx = i;
+        }
+      }
+
+      // Update de Kompas / Oriëntatie knop in de UI
+      const compassBtn = document.getElementById('btnFpOrientation');
+      const compassIcon = document.getElementById('fpCompassIcon');
+      const compassText = document.getElementById('fpOrientationText');
+      if (compassBtn && compassIcon && compassText) {
+        if (currentFloorplanOrientation === 'aligned') {
+          const needleDeg = (baseAngle * 180 / Math.PI).toFixed(1);
+          compassIcon.style.transform = `rotate(${needleDeg}deg)`;
+          compassText.innerHTML = `RECHT ⟲ <span class="text-slate-400 font-normal hidden sm:inline">(klik voor noord)</span>`;
+          compassBtn.classList.add('border-teal-500', 'bg-teal-950/40');
+        } else {
+          compassIcon.style.transform = 'rotate(0deg)';
+          compassText.innerHTML = `NOORD ↑ <span class="text-slate-400 font-normal hidden sm:inline">(klik voor recht)</span>`;
+          compassBtn.classList.remove('border-teal-500', 'bg-teal-950/40');
+        }
+      }
+
+      // Als rechte CAD-oriëntatie actief is: roteer alle punten zodat de hoofdgevel exact 0.00° horizontaal ligt
+      if (currentFloorplanOrientation === 'aligned') {
+        const cosA = Math.cos(-baseAngle);
+        const sinA = Math.sin(-baseAngle);
+        pts = pts.map(p => ({
+          x: cX + (p.x - cX) * cosA - (p.y - cY) * sinA,
+          y: cY + (p.x - cX) * sinA + (p.y - cY) * cosA
+        }));
+      }
 
       // Calculate signed area and orientation
       let signedArea = 0;
@@ -1835,7 +1914,7 @@
         if (p.y > maxY) maxY = p.y;
       });
 
-      const pad = 4.8; // Ruim zodat beide maatlijnen buiten de muren nooit van het canvas vallen
+      const pad = 5.2; // Ruim zodat beide maatlijnen en voorzijde badge buiten de muren nooit van het canvas vallen
       const width = (maxX - minX) + pad * 2;
       const height = (maxY - minY) + pad * 2;
       const viewBoxX = minX - pad;
@@ -1884,13 +1963,30 @@
         // 1. BUITENMAAT (blauw) - loopt exact van hoekpunt p1 tot p2
         if (showOuter) {
           const outTrack1 = isDualMode && placeInnerOutside ? 0.70 : 0.82;
-          const d1x = p1.x + outNx * outTrack1;
-          const d1y = p1.y + outNy * outTrack1;
-          const d2x = p2.x + outNx * outTrack1;
-          const d2y = p2.y + outNy * outTrack1;
+          let d1x = p1.x + outNx * outTrack1;
+          let d1y = p1.y + outNy * outTrack1;
+          let d2x = p2.x + outNx * outTrack1;
+          let d2y = p2.y + outNy * outTrack1;
 
-          const mid1x = (d1x + d2x) / 2;
-          const mid1y = (d1y + d2y) / 2;
+          // Corner inset bij concave reflexhoeken zodat maatlijnen nooit door aangrenzende wanden prikken
+          if (c1Concave) {
+            d1x += ux * 0.25;
+            d1y += uy * 0.25;
+          }
+          if (c2Concave) {
+            d2x -= ux * 0.25;
+            d2y -= uy * 0.25;
+          }
+
+          // Adaptieve badge shift weg van inspringende hoeken om tekstoverlap (bijv. 3.82m vs 2.44m) te voorkomen
+          let tShift = 0.50;
+          if (outLen < 4.5) {
+            if (c2Concave && !c1Concave) tShift = 0.32;
+            else if (c1Concave && !c2Concave) tShift = 0.68;
+          }
+
+          const mid1x = d1x + (d2x - d1x) * tShift;
+          const mid1y = d1y + (d2y - d1y) * tShift;
 
           outerDimHtml += `
             <!-- Witness lines Buitenmaat (verbinden buitenhoeken direct met maatlijn) -->
@@ -1975,10 +2071,25 @@
             `;
           }
         }
+
+        // 3. VOORZIJDE (STRAAT) BADGE
+        if (i === frontWallIdx) {
+          const fDist = (placeInnerOutside ? 1.55 : 0.85) + 0.95;
+          const fX = (p1.x + p2.x) / 2 + outNx * fDist;
+          const fY = (p1.y + p2.y) / 2 + outNy * fDist;
+
+          outerDimHtml += `
+            <!-- VOORZIJDE (STRAATZIJDE) BADGE -->
+            <g transform="translate(${fX.toFixed(3)}, ${fY.toFixed(3)}) rotate(${angle.toFixed(1)})">
+              <rect x="-2.2" y="-0.38" width="4.4" height="0.76" rx="0.22" fill="#0f172a" stroke="#0ea5e9" stroke-width="0.05" />
+              <text y="0.13" fill="#38bdf8" font-size="0.36" font-family="sans-serif" font-weight="bold" text-anchor="middle">◀ VOORZIJDE (STRAAT)</text>
+            </g>
+          `;
+        }
       }
 
-      const cX = pts.reduce((s, p) => s + p.x, 0) / n;
-      const cY = pts.reduce((s, p) => s + p.y, 0) / n;
+      const floorCenterX = pts.reduce((s, p) => s + p.x, 0) / n;
+      const floorCenterY = pts.reduce((s, p) => s + p.y, 0) / n;
 
       wrapper.innerHTML = `
         <svg viewBox="${viewBoxX.toFixed(2)} ${viewBoxY.toFixed(2)} ${width.toFixed(2)} ${height.toFixed(2)}" class="w-full h-full max-h-[500px]" preserveAspectRatio="xMidYMid meet">
@@ -2010,7 +2121,7 @@
           ${innerDimHtml}
 
           <!-- Subtiel etage label in het midden van de vloer -->
-          <g transform="translate(${cX.toFixed(2)}, ${cY.toFixed(2)})" text-anchor="middle" pointer-events="none">
+          <g transform="translate(${floorCenterX.toFixed(2)}, ${floorCenterY.toFixed(2)})" text-anchor="middle" pointer-events="none">
             <rect x="-1.8" y="-0.5" width="3.6" height="1.0" rx="0.3" fill="#0f172a" fill-opacity="0.85" stroke="#334155" stroke-width="0.04" />
             <text y="0.2" fill="#94a3b8" font-size="0.45" font-weight="bold" font-family="sans-serif">BEGANE GROND</text>
           </g>
