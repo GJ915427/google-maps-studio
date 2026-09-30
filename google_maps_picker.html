@@ -553,6 +553,7 @@
             <span class="w-3 h-1 bg-[#fbbf24] rounded-xs inline-block"></span>
             <span class="text-amber-300 font-medium">Binnenmaat (binnenwanden)</span>
           </div>
+          <span class="text-slate-500 text-xxs hidden md:inline">• Standaard beide buitenwerks; bij inspringende hoeken inwendig</span>
         </div>
       </div>
 
@@ -1675,28 +1676,66 @@
       });
 
       // Filter consecutive identical points
-      let coords = [];
+      let rawCoords = [];
       for (let i = 0; i < rawRing.length; i++) {
         if (i === 0 || Math.abs(rawRing[i][0] - rawRing[i-1][0]) > 1e-7 || Math.abs(rawRing[i][1] - rawRing[i-1][1]) > 1e-7) {
-          coords.push(rawRing[i]);
+          rawCoords.push(rawRing[i]);
         }
       }
-      if (coords.length > 2 && Math.abs(coords[0][0] - coords[coords.length-1][0]) < 1e-7 && Math.abs(coords[0][1] - coords[coords.length-1][1]) < 1e-7) {
-        coords.pop();
+      if (rawCoords.length > 2 && Math.abs(rawCoords[0][0] - rawCoords[rawCoords.length-1][0]) < 1e-7 && Math.abs(rawCoords[0][1] - rawCoords[rawCoords.length-1][1]) < 1e-7) {
+        rawCoords.pop();
       }
 
-      const n = coords.length;
-      if (n < 3) return;
+      if (rawCoords.length < 3) return;
 
       // Project to local metric cartesian coordinates (meters)
       const R = 6378137;
-      const lat0 = coords[0][1] * Math.PI / 180;
+      const lat0 = rawCoords[0][1] * Math.PI / 180;
       const cosLat0 = Math.cos(lat0);
 
-      const pts = coords.map(c => ({
-        x: (c[0] - coords[0][0]) * Math.PI / 180 * R * cosLat0,
-        y: -(c[1] - coords[0][1]) * Math.PI / 180 * R // inverted for SVG (North UP)
+      let rawPts = rawCoords.map(c => ({
+        x: (c[0] - rawCoords[0][0]) * Math.PI / 180 * R * cosLat0,
+        y: -(c[1] - rawCoords[0][1]) * Math.PI / 180 * R // inverted for SVG (North UP)
       }));
+
+      // Bouwkundige correctie: voeg collineaire tussenpunten (kadastrale perceels/buuraansluitingen in rechte gevels) samen
+      function simplifyCollinear(points, maxAngleDeg = 4.0) {
+        let res = [...points];
+        let changed = true;
+        while (changed && res.length > 3) {
+          changed = false;
+          const len = res.length;
+          for (let i = 0; i < len; i++) {
+            const pPrev = res[(i - 1 + len) % len];
+            const pCurr = res[i];
+            const pNext = res[(i + 1) % len];
+            const v1x = pCurr.x - pPrev.x;
+            const v1y = pCurr.y - pPrev.y;
+            const l1 = Math.hypot(v1x, v1y);
+            const v2x = pNext.x - pCurr.x;
+            const v2y = pNext.y - pCurr.y;
+            const l2 = Math.hypot(v2x, v2y);
+            if (l1 < 1e-4 || l2 < 1e-4) {
+              res.splice(i, 1);
+              changed = true;
+              break;
+            }
+            const dot = (v1x * v2x + v1y * v2y) / (l1 * l2);
+            const cross = (v1x * v2y - v1y * v2x) / (l1 * l2);
+            const ang = Math.abs(Math.atan2(cross, dot) * 180 / Math.PI);
+            if (ang < maxAngleDeg) {
+              res.splice(i, 1);
+              changed = true;
+              break;
+            }
+          }
+        }
+        return res;
+      }
+
+      const pts = simplifyCollinear(rawPts, 4.0);
+      const n = pts.length;
+      if (n < 3) return;
 
       // Calculate signed area and orientation
       let signedArea = 0;
@@ -1713,6 +1752,7 @@
       let perimeter = 0;
       const wallLengths = [];
       const innerPts = [];
+      const isConcaveCorner = [];
 
       for (let i = 0; i < n; i++) {
         const pPrev = pts[(i - 1 + n) % n];
@@ -1729,6 +1769,9 @@
 
         wallLengths.push(l2);
         perimeter += l2;
+
+        const cross = (v1x * v2y - v1y * v2x) * sign;
+        isConcaveCorner.push(cross < 0); // true als dit een inspringende reflexhoek is
 
         if (l1 < 1e-5 || l2 < 1e-5) {
           innerPts.push({ x: pCurr.x, y: pCurr.y });
@@ -1793,7 +1836,7 @@
         if (p.y > maxY) maxY = p.y;
       });
 
-      const pad = 4.2; // Ruim zodat maatlijnen buiten de muren nooit van het canvas vallen
+      const pad = 4.8; // Ruim zodat beide maatlijnen buiten de muren nooit van het canvas vallen
       const width = (maxX - minX) + pad * 2;
       const height = (maxY - minY) + pad * 2;
       const viewBoxX = minX - pad;
@@ -1808,97 +1851,127 @@
 
       const showOuter = currentFloorplanDimMode === 'all' || currentFloorplanDimMode === 'outside';
       const showInner = currentFloorplanDimMode === 'all' || currentFloorplanDimMode === 'inside';
+      const isDualMode = currentFloorplanDimMode === 'all';
 
-      // 1. BUITENMATEN (geplaatst aan de buitenzijde van het pand)
-      if (showOuter) {
-        for (let i = 0; i < n; i++) {
-          const p1 = pts[i];
-          const p2 = pts[(i + 1) % n];
-          const len = wallLengths[i];
-          if (len < 0.7) continue; // skip micro knikjes < 70cm om overlapping te voorkomen
+      for (let i = 0; i < n; i++) {
+        const p1 = pts[i];
+        const p2 = pts[(i + 1) % n];
+        const q1 = innerPts[i];
+        const q2 = innerPts[(i + 1) % n];
 
-          const vx = p2.x - p1.x;
-          const vy = p2.y - p1.y;
-          const dist = Math.hypot(vx, vy);
+        const vx = p2.x - p1.x;
+        const vy = p2.y - p1.y;
+        const outLen = Math.hypot(vx, vy);
 
-          // Normaal naar buiten gericht
-          const outNx = vy / dist * sign;
-          const outNy = -vx / dist * sign;
+        const ivx = q2.x - q1.x;
+        const ivy = q2.y - q1.y;
+        const inLen = Math.hypot(ivx, ivy);
 
-          // Adaptieve afstand: grotere muren iets verder naar buiten, kortere dichterbij
-          const offsetDist = Math.min(1.1, Math.max(0.75, len * 0.22));
+        if (outLen < 0.6) continue; // skip micro knikjes < 60cm
 
-          const d1x = p1.x + outNx * offsetDist;
-          const d1y = p1.y + outNy * offsetDist;
-          const d2x = p2.x + outNx * offsetDist;
-          const d2y = p2.y + outNy * offsetDist;
+        // Normaal naar buiten gericht
+        const outNx = vy / outLen * sign;
+        const outNy = -vx / outLen * sign;
+
+        let angle = Math.atan2(vy, vx) * 180 / Math.PI;
+        if (angle > 90 || angle < -90) angle += 180;
+
+        // Bepaal of de binnenmaat veilig buiten geplaatst kan worden zonder hoekoverlap
+        // Bij inspringende hoeken wijzen buiten-normalen naar elkaar toe;
+        // om overlap in die nissen te voorkomen wordt de binnenmaat inwendig geplaatst.
+        const c1Concave = isConcaveCorner[i];
+        const c2Concave = isConcaveCorner[(i + 1) % n];
+        const hasConcaveCorner = c1Concave || c2Concave;
+        const placeInnerOutside = !hasConcaveCorner;
+
+        // 1. BUITENMAAT (blauw) - geplaatst op Track 1 aan de buitenzijde
+        if (showOuter) {
+          const outTrack1 = isDualMode && placeInnerOutside ? 0.70 : 0.82;
+          const d1x = p1.x + outNx * outTrack1;
+          const d1y = p1.y + outNy * outTrack1;
+          const d2x = p2.x + outNx * outTrack1;
+          const d2y = p2.y + outNy * outTrack1;
 
           // Inset maatlijn 14% aan beide uiteinden zodat hoeken elkaar NOOIT raken
-          const inFrac = len > 3 ? 0.12 : 0.16;
-          const l1x = d1x + (d2x - d1x) * inFrac;
-          const l1y = d1y + (d2y - d1y) * inFrac;
-          const l2x = d1x + (d2x - d1x) * (1 - inFrac);
-          const l2y = d1y + (d2y - d1y) * (1 - inFrac);
+          const inFrac1 = outLen > 3 ? 0.12 : 0.16;
+          const l1x = d1x + (d2x - d1x) * inFrac1;
+          const l1y = d1y + (d2y - d1y) * inFrac1;
+          const l2x = d1x + (d2x - d1x) * (1 - inFrac1);
+          const l2y = d1y + (d2y - d1y) * (1 - inFrac1);
 
-          const midX = (d1x + d2x) / 2;
-          const midY = (d1y + d2y) / 2;
-
-          let angle = Math.atan2(vy, vx) * 180 / Math.PI;
-          if (angle > 90 || angle < -90) angle += 180;
+          const mid1x = (d1x + d2x) / 2;
+          const mid1y = (d1y + d2y) / 2;
 
           outerDimHtml += `
             <line x1="${l1x.toFixed(3)}" y1="${l1y.toFixed(3)}" x2="${l2x.toFixed(3)}" y2="${l2y.toFixed(3)}" stroke="#0284c7" stroke-width="0.05" marker-start="url(#dotMarkerBlue)" marker-end="url(#dotMarkerBlue)" />
-            <g transform="translate(${midX.toFixed(3)}, ${midY.toFixed(3)}) rotate(${angle.toFixed(1)})">
+            <g transform="translate(${mid1x.toFixed(3)}, ${mid1y.toFixed(3)}) rotate(${angle.toFixed(1)})">
               <rect x="-1.15" y="-0.32" width="2.3" height="0.64" rx="0.18" fill="#070d1e" stroke="#0284c7" stroke-width="0.04" />
-              <text y="0.14" fill="#38bdf8" font-size="0.42" font-family="monospace" font-weight="bold" text-anchor="middle">${len.toFixed(2)}m</text>
+              <text y="0.14" fill="#38bdf8" font-size="0.42" font-family="monospace" font-weight="bold" text-anchor="middle">${outLen.toFixed(2)}m</text>
             </g>
           `;
         }
-      }
 
-      // 2. BINNENMATEN (geplaatst in de kamers / aan de binnenzijde van de muren)
-      if (showInner) {
-        for (let i = 0; i < n; i++) {
-          const q1 = innerPts[i];
-          const q2 = innerPts[(i + 1) % n];
+        // 2. BINNENMAAT (amber)
+        if (showInner) {
+          if (placeInnerOutside) {
+            // Geplaatst op Track 2 aan de buitenzijde (1.55m)
+            const outTrack2 = isDualMode ? 1.55 : 0.85;
+            const id1x = p1.x + outNx * outTrack2;
+            const id1y = p1.y + outNy * outTrack2;
+            const id2x = p2.x + outNx * outTrack2;
+            const id2y = p2.y + outNy * outTrack2;
 
-          const ivx = q2.x - q1.x;
-          const ivy = q2.y - q1.y;
-          const innerLen = Math.hypot(ivx, ivy);
-          if (innerLen < 0.7) continue; // skip kleine binnenwandjes < 70cm
+            const inFrac2 = inLen > 3 ? 0.12 : 0.16;
+            const il1x = id1x + (id2x - id1x) * inFrac2;
+            const il1y = id1y + (id2y - id1y) * inFrac2;
+            const il2x = id1x + (id2x - id1x) * (1 - inFrac2);
+            const il2y = id1y + (id2y - id1y) * (1 - inFrac2);
 
-          // Normaal naar de kamer toe gericht (binnenzijde)
-          const inNx = -ivy / innerLen * sign;
-          const inNy = ivx / innerLen * sign;
+            const mid2x = (id1x + id2x) / 2;
+            const mid2y = (id1y + id2y) / 2;
 
-          // Afstand naar binnen in de kamer
-          const inOffsetDist = Math.min(0.70, Math.max(0.42, innerLen * 0.16));
+            innerDimHtml += `
+              <!-- Hulplijnen vanaf gevelhoeken naar track 2 -->
+              <line x1="${(p1.x + outNx * 0.12).toFixed(3)}" y1="${(p1.y + outNy * 0.12).toFixed(3)}" x2="${(p1.x + outNx * (outTrack2 + 0.12)).toFixed(3)}" y2="${(p1.y + outNy * (outTrack2 + 0.12)).toFixed(3)}" stroke="#d97706" stroke-width="0.02" stroke-dasharray="0.12 0.12" opacity="0.35" />
+              <line x1="${(p2.x + outNx * 0.12).toFixed(3)}" y1="${(p2.y + outNy * 0.12).toFixed(3)}" x2="${(p2.x + outNx * (outTrack2 + 0.12)).toFixed(3)}" y2="${(p2.y + outNy * (outTrack2 + 0.12)).toFixed(3)}" stroke="#d97706" stroke-width="0.02" stroke-dasharray="0.12 0.12" opacity="0.35" />
 
-          const id1x = q1.x + inNx * inOffsetDist;
-          const id1y = q1.y + inNy * inOffsetDist;
-          const id2x = q2.x + inNx * inOffsetDist;
-          const id2y = q2.y + inNy * inOffsetDist;
+              <line x1="${il1x.toFixed(3)}" y1="${il1y.toFixed(3)}" x2="${il2x.toFixed(3)}" y2="${il2y.toFixed(3)}" stroke="#d97706" stroke-width="0.05" marker-start="url(#dotMarkerAmber)" marker-end="url(#dotMarkerAmber)" />
+              <g transform="translate(${mid2x.toFixed(3)}, ${mid2y.toFixed(3)}) rotate(${angle.toFixed(1)})">
+                <rect x="-1.15" y="-0.32" width="2.3" height="0.64" rx="0.18" fill="#070d1e" stroke="#d97706" stroke-width="0.04" />
+                <text y="0.14" fill="#fbbf24" font-size="0.42" font-family="monospace" font-weight="bold" text-anchor="middle">${inLen.toFixed(2)}m</text>
+              </g>
+            `;
+          } else {
+            // Geplaatst aan de binnenzijde (in het vertrek) ter voorkoming van overlap bij inspringende hoeken
+            const inDist = 0.55;
+            const inNx = -vy / outLen * sign;
+            const inNy = vx / outLen * sign;
 
-          // Inset maatlijn 14% aan beide uiteinden zodat binnenhoeken elkaar nooit raken
-          const inFrac = innerLen > 3 ? 0.12 : 0.16;
-          const il1x = id1x + (id2x - id1x) * inFrac;
-          const il1y = id1y + (id2y - id1y) * inFrac;
-          const il2x = id1x + (id2x - id1x) * (1 - inFrac);
-          const il2y = id1y + (id2y - id1y) * (1 - inFrac);
+            const id1x = q1.x + inNx * inDist;
+            const id1y = q1.y + inNy * inDist;
+            const id2x = q2.x + inNx * inDist;
+            const id2y = q2.y + inNy * inDist;
 
-          const midInX = (id1x + id2x) / 2;
-          const midInY = (id1y + id2y) / 2;
+            const inFrac2 = inLen > 3 ? 0.12 : 0.16;
+            const il1x = id1x + (id2x - id1x) * inFrac2;
+            const il1y = id1y + (id2y - id1y) * inFrac2;
+            const il2x = id1x + (id2x - id1x) * (1 - inFrac2);
+            const il2y = id1y + (id2y - id1y) * (1 - inFrac2);
 
-          let angleIn = Math.atan2(ivy, ivx) * 180 / Math.PI;
-          if (angleIn > 90 || angleIn < -90) angleIn += 180;
+            const mid2x = (id1x + id2x) / 2;
+            const mid2y = (id1y + id2y) / 2;
 
-          innerDimHtml += `
-            <line x1="${il1x.toFixed(3)}" y1="${il1y.toFixed(3)}" x2="${il2x.toFixed(3)}" y2="${il2y.toFixed(3)}" stroke="#d97706" stroke-width="0.05" marker-start="url(#dotMarkerAmber)" marker-end="url(#dotMarkerAmber)" />
-            <g transform="translate(${midInX.toFixed(3)}, ${midInY.toFixed(3)}) rotate(${angleIn.toFixed(1)})">
-              <rect x="-1.15" y="-0.32" width="2.3" height="0.64" rx="0.18" fill="#070d1e" stroke="#d97706" stroke-width="0.04" />
-              <text y="0.14" fill="#fbbf24" font-size="0.42" font-family="monospace" font-weight="bold" text-anchor="middle">${innerLen.toFixed(2)}m</text>
-            </g>
-          `;
+            let angleIn = Math.atan2(ivy, ivx) * 180 / Math.PI;
+            if (angleIn > 90 || angleIn < -90) angleIn += 180;
+
+            innerDimHtml += `
+              <line x1="${il1x.toFixed(3)}" y1="${il1y.toFixed(3)}" x2="${il2x.toFixed(3)}" y2="${il2y.toFixed(3)}" stroke="#d97706" stroke-width="0.05" marker-start="url(#dotMarkerAmber)" marker-end="url(#dotMarkerAmber)" />
+              <g transform="translate(${mid2x.toFixed(3)}, ${mid2y.toFixed(3)}) rotate(${angleIn.toFixed(1)})">
+                <rect x="-1.15" y="-0.32" width="2.3" height="0.64" rx="0.18" fill="#070d1e" stroke="#d97706" stroke-width="0.04" />
+                <text y="0.14" fill="#fbbf24" font-size="0.42" font-family="monospace" font-weight="bold" text-anchor="middle">${inLen.toFixed(2)}m</text>
+              </g>
+            `;
+          }
         }
       }
 
@@ -1953,24 +2026,61 @@
         return;
       }
 
-      let coords = [];
+      let rawCoords = [];
       for (let i = 0; i < rawRing.length; i++) {
         if (i === 0 || Math.abs(rawRing[i][0] - rawRing[i-1][0]) > 1e-7 || Math.abs(rawRing[i][1] - rawRing[i-1][1]) > 1e-7) {
-          coords.push(rawRing[i]);
+          rawCoords.push(rawRing[i]);
         }
       }
-      if (coords.length > 2 && Math.abs(coords[0][0] - coords[coords.length-1][0]) < 1e-7 && Math.abs(coords[0][1] - coords[coords.length-1][1]) < 1e-7) {
-        coords.pop();
+      if (rawCoords.length > 2 && Math.abs(rawCoords[0][0] - rawCoords[rawCoords.length-1][0]) < 1e-7 && Math.abs(rawCoords[0][1] - rawCoords[rawCoords.length-1][1]) < 1e-7) {
+        rawCoords.pop();
       }
 
       const R = 6378137;
-      const lat0 = coords[0][1] * Math.PI / 180;
+      const lat0 = rawCoords[0][1] * Math.PI / 180;
       const cosLat0 = Math.cos(lat0);
 
-      const pts = coords.map(c => ({
-        x: (c[0] - coords[0][0]) * Math.PI / 180 * R * cosLat0,
-        y: -(c[1] - coords[0][1]) * Math.PI / 180 * R
+      let rawPts = rawCoords.map(c => ({
+        x: (c[0] - rawCoords[0][0]) * Math.PI / 180 * R * cosLat0,
+        y: -(c[1] - rawCoords[0][1]) * Math.PI / 180 * R
       }));
+
+      // Collineaire vereenvoudiging
+      function simplifyMini(points) {
+        let res = [...points];
+        let changed = true;
+        while (changed && res.length > 3) {
+          changed = false;
+          const len = res.length;
+          for (let i = 0; i < len; i++) {
+            const pPrev = res[(i - 1 + len) % len];
+            const pCurr = res[i];
+            const pNext = res[(i + 1) % len];
+            const v1x = pCurr.x - pPrev.x;
+            const v1y = pCurr.y - pPrev.y;
+            const l1 = Math.hypot(v1x, v1y);
+            const v2x = pNext.x - pCurr.x;
+            const v2y = pNext.y - pCurr.y;
+            const l2 = Math.hypot(v2x, v2y);
+            if (l1 < 1e-4 || l2 < 1e-4) {
+              res.splice(i, 1);
+              changed = true;
+              break;
+            }
+            const dot = (v1x * v2x + v1y * v2y) / (l1 * l2);
+            const cross = (v1x * v2y - v1y * v2x) / (l1 * l2);
+            const ang = Math.abs(Math.atan2(cross, dot) * 180 / Math.PI);
+            if (ang < 4.0) {
+              res.splice(i, 1);
+              changed = true;
+              break;
+            }
+          }
+        }
+        return res;
+      }
+
+      const pts = simplifyMini(rawPts);
 
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
       pts.forEach(p => {
