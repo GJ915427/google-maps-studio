@@ -1044,7 +1044,7 @@
                 }
 
                 if (state.logistics.pandId && state.logistics.pandId !== '-') {
-                  await fetch3dBagHeight(state.logistics.pandId);
+                  await fetch3dBagComplete(state.logistics.pandId);
                 }
               }
             }
@@ -1055,50 +1055,187 @@
       }
     }
 
-    async function fetch3dBagHeight(pandId) {
+    async function fetch3dBagComplete(pandId) {
       try {
         const cleanId = pandId.replace(/^NL\.IMBAG\.Pand\./, '');
         const res = await fetch(`https://api.3dbag.nl/collections/pand/items/NL.IMBAG.Pand.${cleanId}`);
-        if (res.ok) {
-          const json = await res.json();
-          const objs = json.feature?.CityObjects || {};
-          const main = objs[`NL.IMBAG.Pand.${cleanId}`];
-          if (main && main.attributes) {
-            const a = main.attributes;
-            if (a.b3_h_dak_max != null && a.b3_h_maaiveld != null) {
-              state.logistics.nokhoogte = +(a.b3_h_dak_max - a.b3_h_maaiveld).toFixed(1);
-              state.logistics.goothoogte = a.b3_h_dak_min != null ? +(a.b3_h_dak_min - a.b3_h_maaiveld).toFixed(1) : null;
-              state.logistics.gebouwVolume = a.b3_volume_lod22 ? Math.round(a.b3_volume_lod22) : null;
-              state.logistics.bouwlagen = a.b3_bouwlagen || null;
-              
-              const oppPlat = a.b3_opp_dak_plat ? Math.round(a.b3_opp_dak_plat) : 0;
-              const oppSchuin = a.b3_opp_dak_schuin ? Math.round(a.b3_opp_dak_schuin) : 0;
-              state.logistics.oppDakPlat = oppPlat;
-              state.logistics.oppDakSchuin = oppSchuin;
-              state.logistics.hellingshoek = a.b3_hellingshoek != null ? Math.round(a.b3_hellingshoek) : 35;
+        if (!res.ok) return;
+        const json = await res.json();
+        const objs = json.feature?.CityObjects || {};
+        const main = objs[`NL.IMBAG.Pand.${cleanId}`];
+        if (!main || !main.attributes) return;
 
-              if (oppPlat > 15 && oppSchuin > 15) {
-                state.logistics.dakType = `Samengesteld (${oppPlat}m² plat / ${oppSchuin}m² schuin)`;
-                state.logistics.inferredRoofType = 'composite';
-              } else if (oppPlat > oppSchuin * 1.5) {
-                state.logistics.dakType = `Plat dak (${oppPlat}m²)`;
-                state.logistics.inferredRoofType = 'flat';
-              } else {
-                state.logistics.dakType = `Zadeldak (${oppSchuin}m²)`;
-                state.logistics.inferredRoofType = 'slanted';
-              }
+        const a = main.attributes;
+        const maaiveld = a.b3_h_maaiveld || 0;
 
-              // Update dakvorm dropdown label
-              const roofSelect = document.getElementById('fpRoofTypeSelect');
-              if (roofSelect) {
-                const autoOpt = roofSelect.querySelector('option[value="auto"]');
-                if (autoOpt) {
-                  autoOpt.textContent = `Auto (3D BAG: ${oppPlat}m² plat / ${oppSchuin}m² schuin)`;
+        // ── 1. Alle 21 hoofdattributen ──
+        const bag3d = {
+          oppGrond: a.b3_opp_grond != null ? +a.b3_opp_grond.toFixed(1) : null,
+          oppDakPlat: a.b3_opp_dak_plat ? Math.round(a.b3_opp_dak_plat) : 0,
+          oppDakSchuin: a.b3_opp_dak_schuin ? Math.round(a.b3_opp_dak_schuin) : 0,
+          oppBuitenmuur: a.b3_opp_buitenmuur != null ? +a.b3_opp_buitenmuur.toFixed(1) : null,
+          oppScheidingsmuur: a.b3_opp_scheidingsmuur != null ? +a.b3_opp_scheidingsmuur.toFixed(1) : 0,
+          volume: a.b3_volume_lod22 ? Math.round(a.b3_volume_lod22) : null,
+          hNok: a.b3_h_nok || null,
+          hDakMax: a.b3_h_dak_max || null,
+          hDakMin: a.b3_h_dak_min || null,
+          hMaaiveld: maaiveld,
+          bouwlagen: a.b3_bouwlagen || null,
+          b3DakType: a.b3_dak_type || null,
+          aantalNokken: a.b3_n_nok || null,
+          aantalDakVlakken: a.b3_n_vlakken || null,
+          isGlasDak: !!a.b3_is_glas_dak,
+          kasWarenhuis: !!a.b3_kas_warenhuis,
+          mutatieAhn3Ahn4: !!a.b3_mutatie_ahn3_ahn4,
+          mutatieAhn4Ahn5: !!a.b3_mutatie_ahn4_ahn5,
+          rmse: a.b3_rmse_lod22 || null,
+          puntenwolkBron: a.b3_pw_bron || null,
+          puntenwolkJaar: a.b3_pw_datum || null,
+          // Afgeleide hoogtevelden
+          nokhoogte: (a.b3_h_dak_max != null && maaiveld) ? +(a.b3_h_dak_max - maaiveld).toFixed(1) : null,
+          goothoogte: (a.b3_h_dak_min != null && maaiveld) ? +(a.b3_h_dak_min - maaiveld).toFixed(1) : null,
+          hellingshoek: a.b3_hellingshoek != null ? Math.round(a.b3_hellingshoek) : 35,
+          // Worden hieronder gevuld
+          dakvlakken: [],
+          volumes: [],
+          inferredRoofType: 'slanted',
+          dakTypeLabel: '',
+          bouwtypologie: 'Onbekend'
+        };
+
+        // ── 2. Daktype-classificatie ──
+        if (bag3d.oppDakPlat > 15 && bag3d.oppDakSchuin > 15) {
+          bag3d.inferredRoofType = 'composite';
+          bag3d.dakTypeLabel = `Samengesteld (${bag3d.oppDakPlat}m\u00B2 plat / ${bag3d.oppDakSchuin}m\u00B2 schuin)`;
+        } else if (bag3d.oppDakPlat > bag3d.oppDakSchuin * 1.5) {
+          bag3d.inferredRoofType = 'flat';
+          bag3d.dakTypeLabel = `Plat dak (${bag3d.oppDakPlat}m\u00B2)`;
+        } else {
+          bag3d.inferredRoofType = 'slanted';
+          bag3d.dakTypeLabel = `Zadeldak (${bag3d.oppDakSchuin}m\u00B2)`;
+        }
+
+        // ── 3. Bouwtypologie ──
+        if (bag3d.oppScheidingsmuur > 30) {
+          bag3d.bouwtypologie = 'Halfvrijstaand';
+        } else if (bag3d.oppScheidingsmuur > 0) {
+          bag3d.bouwtypologie = 'Geschakeld';
+        } else {
+          bag3d.bouwtypologie = 'Vrijstaand';
+        }
+
+        // ── 4. LoD 2.2 semantische dakvlakken & LoD 1.3 volumes ──
+        const child = objs[`NL.IMBAG.Pand.${cleanId}-0`];
+        if (child && child.geometry && json.feature.vertices) {
+          const tr = json.feature.transform || { scale: [0.001, 0.001, 0.001], translate: [0, 0, 0] };
+          const rawV = json.feature.vertices;
+          const verts = rawV.map(v => [
+            v[0] * tr.scale[0] + tr.translate[0],
+            v[1] * tr.scale[1] + tr.translate[1],
+            v[2] * tr.scale[2] + tr.translate[2]
+          ]);
+
+          for (const geom of child.geometry) {
+            const sem = geom.semantics;
+            if (!sem) continue;
+            const surfs = sem.surfaces || [];
+            const bounds = geom.boundaries || [];
+            const faces = geom.type === 'Solid' ? (bounds[0] || []) : bounds;
+            const vals  = geom.type === 'Solid' ? ((sem.values || [])[0] || []) : (sem.values || []);
+
+            // ── 4a. LoD 2.2: per-dakvlak azimut, helling, hoogtebereik ──
+            if (geom.lod === '2.2') {
+              surfs.forEach((surf, si) => {
+                if (surf.type !== 'RoofSurface') return;
+                const rv = [];
+                vals.forEach((fv, fi) => {
+                  if (fv === si && faces[fi]) {
+                    for (const ring of faces[fi]) {
+                      for (const vi of ring) { if (verts[vi]) rv.push(verts[vi]); }
+                    }
+                  }
+                });
+                if (rv.length < 3) return;
+                const hs = rv.map(v => v[2]);
+                const hMin = Math.min(...hs), hMax = Math.max(...hs);
+                let azimut = 0, helling = 0;
+                for (let i = 0; i < rv.length - 2; i++) {
+                  const pa = rv[0], pb = rv[i+1], pc = rv[i+2];
+                  const ab = [pb[0]-pa[0], pb[1]-pa[1], pb[2]-pa[2]];
+                  const ac = [pc[0]-pa[0], pc[1]-pa[1], pc[2]-pa[2]];
+                  const nx = ab[1]*ac[2] - ab[2]*ac[1];
+                  const ny = ab[2]*ac[0] - ab[0]*ac[2];
+                  const nz = ab[0]*ac[1] - ab[1]*ac[0];
+                  const nLen = Math.sqrt(nx*nx + ny*ny + nz*nz);
+                  if (nLen > 0.001) {
+                    const nnz = nz / nLen, nnx = nx / nLen, nny = ny / nLen;
+                    helling = Math.round(Math.acos(Math.min(1, Math.abs(nnz))) * 180 / Math.PI * 10) / 10;
+                    const dx = nnz >= 0 ? nnx : -nnx;
+                    const dy = nnz >= 0 ? nny : -nny;
+                    azimut = Math.round((Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360);
+                    break;
+                  }
                 }
-              }
+                bag3d.dakvlakken.push({ azimut, helling, hMin: +hMin.toFixed(2), hMax: +hMax.toFixed(2) });
+              });
+            }
+
+            // ── 4b. LoD 1.3: multi-volume decompositie ──
+            if (geom.lod === '1.3') {
+              surfs.forEach((surf, si) => {
+                if (surf.type !== 'RoofSurface') return;
+                const rv = [];
+                vals.forEach((fv, fi) => {
+                  if (fv === si && faces[fi]) {
+                    for (const ring of faces[fi]) {
+                      for (const vi of ring) { if (verts[vi]) rv.push(verts[vi]); }
+                    }
+                  }
+                });
+                if (rv.length === 0) return;
+                const hs = rv.map(v => v[2]);
+                bag3d.volumes.push({
+                  hMax: +Math.max(...hs).toFixed(2),
+                  hMin: +Math.min(...hs).toFixed(2),
+                  hoogteBoven: +(Math.max(...hs) - maaiveld).toFixed(1)
+                });
+              });
+              bag3d.volumes.sort((a, b) => a.hMax - b.hMax);
             }
           }
         }
+
+        // ── 5. Opslaan in state ──
+        state.logistics.bag3d = bag3d;
+
+        // Backward-compatible velden behouden
+        state.logistics.nokhoogte = bag3d.nokhoogte || state.logistics.nokhoogte;
+        state.logistics.goothoogte = bag3d.goothoogte || state.logistics.goothoogte;
+        state.logistics.gebouwVolume = bag3d.volume || state.logistics.gebouwVolume;
+        state.logistics.bouwlagen = bag3d.bouwlagen || state.logistics.bouwlagen;
+        state.logistics.oppDakPlat = bag3d.oppDakPlat;
+        state.logistics.oppDakSchuin = bag3d.oppDakSchuin;
+        state.logistics.hellingshoek = bag3d.hellingshoek;
+        state.logistics.dakType = bag3d.dakTypeLabel;
+        state.logistics.inferredRoofType = bag3d.inferredRoofType;
+
+        // Update dakvorm dropdown label
+        const roofSelect = document.getElementById('fpRoofTypeSelect');
+        if (roofSelect) {
+          const autoOpt = roofSelect.querySelector('option[value="auto"]');
+          if (autoOpt) {
+            autoOpt.textContent = `Auto (3D BAG: ${bag3d.oppDakPlat}m\u00B2 plat / ${bag3d.oppDakSchuin}m\u00B2 schuin)`;
+          }
+        }
+
+        console.log('[3D BAG Complete]', {
+          attributen: 21, dakvlakken: bag3d.dakvlakken.length,
+          volumes: bag3d.volumes.length,
+          rmse: bag3d.rmse ? `${Math.round(bag3d.rmse * 100)}cm` : 'n/a',
+          bouwtypologie: bag3d.bouwtypologie,
+          mutatie: bag3d.mutatieAhn4Ahn5 ? 'JA (2023-2024)' : 'nee'
+        });
+
       } catch (err) {
         console.warn('3D BAG ophalen mislukt:', err);
       }
