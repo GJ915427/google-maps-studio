@@ -167,6 +167,16 @@
           <span id="fpFloorBadgeText" class="truncate">Afgeleid concept</span>
         </div>
 
+        <!-- Pand-classificatie chips (3D BAG) -->
+        <div id="fpPandChips" class="hidden flex flex-wrap gap-1">
+        </div>
+
+        <!-- Mutatie-badge (3D BAG bouwmutatie detectie) -->
+        <div id="fpMutatieBadge" class="hidden text-[10px] font-medium py-0.5 px-2 rounded-md bg-orange-50 text-orange-700 border border-orange-200/60 flex items-center gap-1 leading-snug">
+          <i class="fa-solid fa-triangle-exclamation text-orange-500 text-[10px] shrink-0"></i>
+          <span id="fpMutatieBadgeText">Bouwmutatie gedetecteerd</span>
+        </div>
+
         <!-- Dakvorm Dropdown (alleen zichtbaar bij 2e verdieping) -->
         <div id="fpRoofTypeContainer" class="space-y-1 hidden">
           <label for="fpRoofTypeSelect" class="text-xxs text-slate-500 font-medium block">Dakvorm / 2e verdieping:</label>
@@ -221,6 +231,11 @@
             />
             <span class="w-2.5 h-2.5 rounded-full bg-sky-600 inline-block"></span>
             <span class="text-slate-800 font-medium">Buitenmaten</span>
+          </label>
+          <label id="fpMandeliagLegend" class="hidden items-center gap-2.5 text-xs text-slate-700 select-none font-medium">
+            <span class="w-4 h-4"></span>
+            <span class="w-2.5 h-2.5 inline-block" style="background: repeating-linear-gradient(45deg, #64748b, #64748b 1px, transparent 1px, transparent 3px)"></span>
+            <span class="text-slate-600 font-medium">Woningscheidende muur</span>
           </label>
         </div>
       </div>
@@ -1228,6 +1243,13 @@
           }
         }
 
+        // Auto-default dakvorm op basis van 3D BAG inferredRoofType
+        if (roofSelect && bag3d.inferredRoofType !== 'slanted') {
+          // Bij samengesteld of plat dak: stel dropdown auto in
+          // Gebruiker kan altijd handmatig overschrijven
+          roofSelect.value = 'auto';
+        }
+
         console.log('[3D BAG Complete]', {
           attributen: 21, dakvlakken: bag3d.dakvlakken.length,
           volumes: bag3d.volumes.length,
@@ -1235,6 +1257,46 @@
           bouwtypologie: bag3d.bouwtypologie,
           mutatie: bag3d.mutatieAhn4Ahn5 ? 'JA (2023-2024)' : 'nee'
         });
+
+        // ── 6. Pand-classificatie chips vullen ──
+        const chipsEl = document.getElementById('fpPandChips');
+        if (chipsEl) {
+          const chipClass = 'text-[10px] font-medium py-0.5 px-2 rounded-md border leading-snug whitespace-nowrap';
+          const chips = [
+            { label: bag3d.bouwtypologie, bg: 'bg-slate-50 text-slate-600 border-slate-200' },
+            { label: `${bag3d.bouwlagen || '?'} Bouwlagen`, bg: 'bg-slate-50 text-slate-600 border-slate-200' },
+            { label: bag3d.inferredRoofType === 'composite' ? 'Samengesteld dak' : bag3d.inferredRoofType === 'flat' ? 'Plat dak' : 'Zadeldak', bg: 'bg-slate-50 text-slate-600 border-slate-200' },
+            { label: `${bag3d.volume || '?'} m\u00B3`, bg: 'bg-slate-50 text-slate-600 border-slate-200' },
+            { label: `${(bag3d.puntenwolkBron || 'AHN').toUpperCase()} ${bag3d.puntenwolkJaar || ''}${bag3d.rmse ? ' \u2022 ' + Math.round(bag3d.rmse * 100) + 'cm' : ''}`, bg: 'bg-blue-50 text-blue-600 border-blue-200' }
+          ];
+          chipsEl.innerHTML = chips.map(c => `<span class="${chipClass} ${c.bg}">${c.label}</span>`).join('');
+          chipsEl.classList.remove('hidden');
+        }
+
+        // Mandelige muur legenda tonen
+        const mandLeg = document.getElementById('fpMandeliagLegend');
+        if (mandLeg && bag3d.oppScheidingsmuur > 30) {
+          mandLeg.classList.remove('hidden');
+          mandLeg.classList.add('flex');
+        }
+
+        // ── 7. Mutatie-badge ──
+        const mutatieEl = document.getElementById('fpMutatieBadge');
+        const mutatieText = document.getElementById('fpMutatieBadgeText');
+        if (mutatieEl && mutatieText) {
+          if (bag3d.mutatieAhn4Ahn5) {
+            mutatieText.textContent = `Bouwmutatie ${bag3d.puntenwolkJaar ? (bag3d.puntenwolkJaar - 1) + '-' + bag3d.puntenwolkJaar : '2023-2024'}`;
+            mutatieEl.classList.remove('hidden');
+            mutatieEl.title = 'De Lidar-scan wijkt af van de vorige meting. Mogelijk is er recent verbouwd (dakkapel, aanbouw, opbouw).';
+          } else if (bag3d.mutatieAhn3Ahn4) {
+            mutatieText.textContent = 'Mutatie 2020-2022 (stabiel)';
+            mutatieEl.classList.remove('hidden');
+            mutatieEl.classList.replace('bg-orange-50', 'bg-blue-50');
+            mutatieEl.classList.replace('text-orange-700', 'text-blue-700');
+            mutatieEl.classList.replace('border-orange-200/60', 'border-blue-200/60');
+            mutatieEl.title = 'Er is een bouwmutatie gedetecteerd tussen 2020-2022, maar sindsdien stabiel.';
+          }
+        }
 
       } catch (err) {
         console.warn('3D BAG ophalen mislukt:', err);
@@ -1917,7 +1979,11 @@
           badge.title = '61 m² binnenvloer o.b.v. BAG en houten balklaag';
         }
         if (badgeIcon) badgeIcon.className = 'fa-solid fa-circle-info text-amber-600 text-[11px] shrink-0';
-        if (badgeText) badgeText.textContent = 'Afgeleid concept • 1e verdieping';
+                if (badgeText) {
+          const ahnQ = state.logistics.bag3d;
+          const ql = ahnQ ? `${(ahnQ.puntenwolkBron||'AHN').toUpperCase()} ${ahnQ.puntenwolkJaar||''}` : '';
+          badgeText.textContent = 'Afgeleid concept • 1e verdieping' + (ql ? ' • ' + ql : '');
+        }
         if (titleEl) titleEl.textContent = '1e Verdieping (Concept)';
         if (compassBox) compassBox.classList.remove('hidden');
         if (dimCard) dimCard.classList.remove('hidden');
@@ -1929,7 +1995,11 @@
           badge.title = 'Inschatting o.b.v. 3D BAG AHN Lidar (72 m² plat dak) en NEN 2580';
         }
         if (badgeIcon) badgeIcon.className = 'fa-solid fa-circle-info text-amber-600 text-[11px] shrink-0';
-        if (badgeText) badgeText.textContent = 'Afgeleid concept • 2e verdieping';
+                if (badgeText) {
+          const ahnQ2 = state.logistics.bag3d;
+          const ql2 = ahnQ2 ? `${(ahnQ2.puntenwolkBron||'AHN').toUpperCase()} ${ahnQ2.puntenwolkJaar||''}${ahnQ2.rmse ? ' \u2022 ' + Math.round(ahnQ2.rmse*100) + 'cm' : ''}` : '';
+          badgeText.textContent = 'Afgeleid concept • 2e verdieping' + (ql2 ? ' • ' + ql2 : '');
+        }
         if (titleEl) titleEl.textContent = '2e Verdieping (Concept)';
         if (compassBox) compassBox.classList.remove('hidden');
         if (dimCard) dimCard.classList.remove('hidden');
