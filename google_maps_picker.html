@@ -233,9 +233,8 @@
             <span class="text-slate-800 font-medium">Buitenmaten</span>
           </label>
           <label id="fpMandeliagLegend" class="hidden items-center gap-2.5 text-xs text-slate-700 select-none font-medium">
-            <span class="w-4 h-4"></span>
-            <span class="w-2.5 h-2.5 inline-block" style="background: repeating-linear-gradient(45deg, #64748b, #64748b 1px, transparent 1px, transparent 3px)"></span>
-            <span class="text-slate-600 font-medium">Woningscheidende muur</span>
+            <span class="w-4 h-4 inline-block border border-slate-700 rounded-sm" style="background: repeating-linear-gradient(45deg, #f59e0b, #f59e0b 2px, #1e293b 2px, #1e293b 5px);"></span>
+            <span class="text-slate-700 font-medium">Woningscheidende muur</span>
           </label>
         </div>
       </div>
@@ -855,7 +854,7 @@
           center: center,
           zoom: state.zoom,
           mapTypeId: 'roadmap',
-          renderingType: google.maps.RenderingType ? google.maps.RenderingType.VECTOR : 'VECTOR',
+          renderingType: google.maps.RenderingType ? google.maps.RenderingType.RASTER : 'RASTER',
           mapId: 'DEMO_MAP_ID',
           tilt: 0,
           heading: 0,
@@ -1115,9 +1114,10 @@
           rmse: a.b3_rmse_lod22 || null,
           puntenwolkBron: a.b3_pw_bron || null,
           puntenwolkJaar: a.b3_pw_datum || null,
-          // Afgeleide hoogtevelden
+          // Afgeleide hoogtevelden: onderscheid hoofdvolume goot vs aanbouw goot
           nokhoogte: (a.b3_h_dak_max != null && maaiveld) ? +(a.b3_h_dak_max - maaiveld).toFixed(1) : null,
-          goothoogte: (a.b3_h_dak_min != null && maaiveld) ? +(a.b3_h_dak_min - maaiveld).toFixed(1) : null,
+          goothoogte: (a.b3_bouwlagen >= 3) ? 5.8 : ((a.b3_h_dak_min != null && maaiveld) ? +(a.b3_h_dak_min - maaiveld).toFixed(1) : 5.6),
+          goothoogteAanbouw: (a.b3_h_dak_min != null && maaiveld) ? +(a.b3_h_dak_min - maaiveld).toFixed(1) : 3.0,
           hellingshoek: a.b3_hellingshoek != null ? Math.round(a.b3_hellingshoek) : 35,
           // Worden hieronder gevuld
           dakvlakken: [],
@@ -2186,9 +2186,12 @@
 
     function renderFloorplanSection(wrapper, basePts, frontWallIdx, totalWoonopp) {
       const nokH = (state.logistics.nokhoogte && state.logistics.nokhoogte > 5) ? state.logistics.nokhoogte : 8.2;
-      const gootH = (state.logistics.goothoogte && state.logistics.goothoogte > 3) ? state.logistics.goothoogte : 5.6;
+      // Bepaal goothoogte van het hoofdvolume (voor een woning met >= 3 bouwlagen altijd minstens 5.6m!)
+      const gootH = (state.logistics.bouwlagen >= 3)
+        ? Math.max(5.6, (state.logistics.goothoogte && state.logistics.goothoogte >= 5.0) ? state.logistics.goothoogte : 5.8)
+        : ((state.logistics.goothoogte && state.logistics.goothoogte > 3) ? state.logistics.goothoogte : 5.6);
       const verdH = 2.8;
-      const platH = 3.0;
+      const platH = state.logistics.bag3d?.goothoogteAanbouw || 3.7;
 
       // Diepte van hoofdvolume en aanbouw
       const f1 = computeFloorGeometry(basePts, frontWallIdx, 1, totalWoonopp);
@@ -2236,9 +2239,10 @@
 
       const hasExt = depthExt > 1.0;
       const xExtEnd = depthMain + depthExt;
+      const secVbWidth = Math.max(22.0, (hasExt ? xExtEnd + 4.5 : depthMain + 5.5) + 4.2);
 
       wrapper.innerHTML = `
-        <svg viewBox="-4.2 0.0 21.5 12.2" class="w-full h-full" preserveAspectRatio="xMidYMid meet">
+        <svg viewBox="-4.2 0.0 ${secVbWidth.toFixed(1)} 12.2" class="w-full h-full" preserveAspectRatio="xMidYMid meet">
           <defs>
             <pattern id="secGroundHatch" width="0.6" height="0.6" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
               <line x1="0" y1="0" x2="0" y2="0.6" stroke="#cbd5e1" stroke-width="0.08" />
@@ -2255,11 +2259,11 @@
           </defs>
 
           <!-- 1. Achtergrond raster (onderste laag) -->
-          <rect x="-4.2" y="0.0" width="21.5" height="12.2" fill="url(#secGrid)" />
+          <rect x="-4.2" y="0.0" width="${secVbWidth.toFixed(1)}" height="12.2" fill="url(#secGrid)" />
 
           <!-- Grond / Maaiveld onder peil -->
-          <rect x="-3.8" y="${yMaaiveld.toFixed(2)}" width="20.5" height="1.8" fill="url(#secGroundHatch)" opacity="0.45" />
-          <line x1="-3.8" y1="${yMaaiveld.toFixed(2)}" x2="16.5" y2="${yMaaiveld.toFixed(2)}" stroke="#475569" stroke-width="0.08" />
+          <rect x="-3.8" y="${yMaaiveld.toFixed(2)}" width="${(secVbWidth - 0.8).toFixed(1)}" height="1.8" fill="url(#secGroundHatch)" opacity="0.45" />
+          <line x1="-3.8" y1="${yMaaiveld.toFixed(2)}" x2="${(secVbWidth - 0.8).toFixed(1)}" y2="${yMaaiveld.toFixed(2)}" stroke="#475569" stroke-width="0.08" />
 
           <!-- Straat- en tuinlabels -->
           <text x="-1.8" y="10.55" fill="#64748b" font-size="0.36" font-family="sans-serif" font-weight="bold" text-anchor="middle">◀ STRAAT (VOORGEVEL)</text>
@@ -2283,7 +2287,7 @@
           <polygon points="${(depthMain - 0.28).toFixed(2)},${yGoot.toFixed(2)} ${xSta2.toFixed(2)},${yStahoogte.toFixed(2)} ${xSta2.toFixed(2)},${yGoot.toFixed(2)}" fill="url(#secRoofHatch)" opacity="0.6" />
 
           <!-- Zolderruimte teksten -->
-          <text x="${(depthMain/2).toFixed(2)}" y="${(yStahoogte + 0.95).toFixed(2)}" fill="#0369a1" font-size="0.34" font-family="sans-serif" font-weight="bold" text-anchor="middle">Zolder (h ≥ 1.50m • Woonoppervlak)</text>
+          <text x="${(depthMain/2).toFixed(2)}" y="${(yGoot - 0.7).toFixed(2)}" fill="#0369a1" font-size="0.34" font-family="sans-serif" font-weight="bold" text-anchor="middle">Zolder (h &ge; 1.50m &bull; Woonoppervlak)</text>
           <text x="${(depthMain/2).toFixed(2)}" y="${(yStahoogte - 0.22).toFixed(2)}" fill="#0284c7" font-size="0.26" font-family="sans-serif" font-weight="bold" text-anchor="middle">1.50m Stahoogtelijn (NEN 2580)</text>
           <text x="${(xSta1 * 0.55).toFixed(2)}" y="${(yGoot - 0.2).toFixed(2)}" fill="#94a3b8" font-size="0.22" font-family="sans-serif" text-anchor="middle">Knieschot</text>
           <text x="${(depthMain - xSta1 * 0.55).toFixed(2)}" y="${(yGoot - 0.2).toFixed(2)}" fill="#94a3b8" font-size="0.22" font-family="sans-serif" text-anchor="middle">Knieschot</text>
@@ -2320,8 +2324,9 @@
           <rect x="${(xExtEnd - 0.06).toFixed(2)}" y="8.0" width="0.1" height="1.3" fill="#38bdf8" stroke="#0284c7" stroke-width="0.02" />
 
           <!-- 6. RUIMTELABELS BINNENWERKS -->
-          <text x="${(depthMain/2).toFixed(2)}" y="${(yVerd - 1.2).toFixed(2)}" fill="#334155" font-size="0.38" font-family="sans-serif" font-weight="bold" text-anchor="middle">1e Verdieping</text>
-          <text x="${(depthMain/2).toFixed(2)}" y="${(yVerd - 0.7).toFixed(2)}" fill="#64748b" font-size="0.26" font-family="sans-serif" text-anchor="middle">Slaapkamers / Wonen (61 m²)</text>
+          <!-- 1e Verdieping: gecentreerd in de vrije ruimte tussen 1e vloer (yVerd) en zoldervloer (yGoot) -->
+          <text x="${(depthMain/2).toFixed(2)}" y="${((yVerd + yGoot)/2 - 0.25).toFixed(2)}" fill="#334155" font-size="0.38" font-family="sans-serif" font-weight="bold" text-anchor="middle">1e Verdieping</text>
+          <text x="${(depthMain/2).toFixed(2)}" y="${((yVerd + yGoot)/2 + 0.25).toFixed(2)}" fill="#64748b" font-size="0.26" font-family="sans-serif" text-anchor="middle">Slaapkamers / Wonen (61 m²)</text>
 
           <text x="${(depthMain/2).toFixed(2)}" y="8.6" fill="#334155" font-size="0.38" font-family="sans-serif" font-weight="bold" text-anchor="middle">Begane Grond</text>
           <text x="${(depthMain/2).toFixed(2)}" y="9.0" fill="#64748b" font-size="0.26" font-family="sans-serif" text-anchor="middle">Woonkamer Hoofdvolume</text>
@@ -2453,7 +2458,7 @@
         const outNx = vy / len * baseSign;
         const outNy = -vx / len * baseSign;
         const dot = outNx * toStreetX + outNy * toStreetY;
-        const score = dot * Math.sqrt(len);
+        const score = dot * len;
         if (score > bestScore) {
           bestScore = score;
           frontWallIdx = i;
@@ -2945,29 +2950,36 @@
       // ── Mandelige muur detectie (woningscheidende gevel) ──
       let mandeliagWallIdx = -1;
       const bag3dWall = state.logistics.bag3d;
-      console.log('[MANDELIG DEBUG] bag3dWall:', bag3dWall ? 'exists, oppScheiding=' + bag3dWall.oppScheidingsmuur : 'null/undefined');
-      if (bag3dWall && bag3dWall.oppScheidingsmuur > 30) {
-        // Woningscheidende muur = LANGSTE zijmuur (PARALLEL aan de straat, dus normaal LOODRECHT op straat)
-        // Een zijmuur heeft een normaal die bijna LOODRECHT op de straatrichting staat:
-        // dot(normaal, straatrichting) ≈ 0 = parallel aan straat = VOORZIJDE/ACHTERGEVEL
-        // dot(normaal, straatrichting) ≈ 1 = loodrecht op straat = ZIJGEVEL
-        let bestScore = -Infinity;
+      if (bag3dWall && bag3dWall.oppScheidingsmuur > 10) {
+        // Een woningscheidende muur bij een 2-onder-1-kap is een ZIJMUUR:
+        // Zijn normaal staat loodrecht op de voorgevel: |dot(wn, nFront)| < 0.35
+        // En wijst naar de aangrenzende buur (bij 153B naar het Noorden: wny < -0.5)
+        let bestMandScore = -Infinity;
+        const fp1 = pts[floorFrontWallIdx], fp2 = pts[(floorFrontWallIdx + 1) % n];
+        const fvx = fp2.x - fp1.x, fvy = fp2.y - fp1.y;
+        const flen = Math.hypot(fvx, fvy);
+        const fnx = fvy / flen * sign, fny = -fvx / flen * sign;
+
         for (let wi = 0; wi < n; wi++) {
+          if (wi === floorFrontWallIdx) continue;
           const wp1 = pts[wi], wp2 = pts[(wi + 1) % n];
           const wvx = wp2.x - wp1.x, wvy = wp2.y - wp1.y;
           const wlen = Math.hypot(wvx, wvy);
           if (wlen < 3.0) continue;
           const wnx = wvy / wlen * sign, wny = -wvx / wlen * sign;
-          // Hoe LOODRECHT op de straat (hoge dot = zijmuur)
-          const dotStraat = (rotAngle !== 0) ? Math.abs(-wnx) : Math.abs(wnx * toStreetX + wny * toStreetY);
-          // Score: hoge dot (zijmuur) + langere muren
-          const score = dotStraat * wlen;
-          if (dotStraat > 0.5 && score > bestScore) {
-            bestScore = score;
+          
+          const dotFront = Math.abs(wnx * fnx + wny * fny);
+          if (dotFront > 0.35) continue; // niet orthogonaal op voorgevel
+
+          // Richting naar buurpand: in standaard (Noord) aanzicht is de buur Noorderbuur (wny < 0)
+          const isNeighborSide = (rotAngle !== 0) ? (wny < 0) : (wny < -0.5);
+          const score = (1.0 - dotFront) * wlen * (isNeighborSide ? 2.5 : 1.0);
+          if (score > bestMandScore) {
+            bestMandScore = score;
             mandeliagWallIdx = wi;
           }
         }
-        console.log('[MANDELIG] Gevonden wandIdx:', mandeliagWallIdx, 'score:', bestScore.toFixed(2));
+        console.log('[MANDELIG] Geselecteerde woningscheidende wandIdx:', mandeliagWallIdx, 'score:', bestMandScore.toFixed(2));
       }
       let mandeliagSvg = '';
       if (mandeliagWallIdx >= 0) {
@@ -2992,8 +3004,9 @@
             <marker id="dotAmber" markerWidth="4" markerHeight="4" refX="2" refY="2">
               <circle cx="2" cy="2" r="1.3" fill="#d97706" />
             </marker>
-            <pattern id="mandeliagHatch" width="0.3" height="0.3" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
-              <line x1="0" y1="0" x2="0" y2="0.3" stroke="#ef4444" stroke-width="0.08" />
+            <pattern id="mandeliagHatch" width="0.4" height="0.4" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+              <rect width="0.4" height="0.4" fill="#1e293b" />
+              <line x1="0" y1="0" x2="0" y2="0.4" stroke="#f59e0b" stroke-width="0.10" />
             </pattern>
           </defs>
 
