@@ -2055,6 +2055,23 @@
       // Buitenwerks diepte (inclusief 2x spouwmuur):
       let depth = dInner + 2 * wallThickness;
 
+      // ── LoD 1.3 volume-gebaseerde diepteverfijning (3D BAG feitelijke geometrie) ──
+      const bag3d = state.logistics.bag3d;
+      if (bag3d && bag3d.volumes && bag3d.volumes.length >= 2) {
+        const mainVol = bag3d.volumes[bag3d.volumes.length - 1];
+        const aanbouwVol = bag3d.volumes[0];
+        const mainH = mainVol.hoogteBoven || 8.9;
+        const aanbouwH = aanbouwVol.hoogteBoven || 3.9;
+        // Hoofdvolume significant hoger dan aanbouw bevestigt de split
+        if (mainH > aanbouwH * 1.4 && bag3d.oppGrond && fLen > 2) {
+          // Exacte diepte: bovenverdieping oppervlakte / gevelbreedte + muren
+          const bag3dDepth = upperRemainingArea / wInner + 2 * wallThickness;
+          if (bag3dDepth >= 4.0 && bag3dDepth <= 10.0) {
+            depth = bag3dDepth;
+          }
+        }
+      }
+
       // Bouwhistorische begrenzing (Nederlandse typologie, houten balkoverspanning max ca. 5.5 - 6.5 meter vóór 1945)
       depth = Math.max(5.0, Math.min(8.0, depth));
 
@@ -2560,7 +2577,17 @@
         const uDx = vDx / totalD, uDy = vDy / totalD;
 
         // Inspringing 1.50m stahoogtelijn onder zadeldak (NEN 2580)
-        const dxSta = 1.35;
+        // Exacte berekening op basis van werkelijke LoD 2.2 dakhelling
+        const bag3dRef = state.logistics.bag3d;
+        let avgSlopeAngle = 35; // fallback
+        if (bag3dRef && bag3dRef.dakvlakken && bag3dRef.dakvlakken.length > 0) {
+          const steepRoofs = bag3dRef.dakvlakken.filter(v => v.helling > 15);
+          if (steepRoofs.length > 0) {
+            avgSlopeAngle = steepRoofs.reduce((s, v) => s + v.helling, 0) / steepRoofs.length;
+          }
+        }
+        const borswering = 0.30; // standaard knieschothoogte
+        const dxSta = Math.max(0.8, (1.50 - borswering) / Math.tan(avgSlopeAngle * Math.PI / 180));
         const staFront1 = { x: pFA.x + uDx * dxSta, y: pFA.y + uDy * dxSta };
         const staFront2 = { x: pFB.x + uDx * dxSta, y: pFB.y + uDy * dxSta };
         const staRear1 = { x: pRB.x - uDx * dxSta, y: pRB.y - uDy * dxSta };
@@ -2833,6 +2860,31 @@
             ? '1e VERDIEPING (CONCEPT)' 
             : (isSlanted ? 'ZOLDER / KAP (CONCEPT)' : '2e VERDIEPING • OPBOUW (CONCEPT)'));
 
+      // ── Mandelige muur detectie (woningscheidende gevel) ──
+      let mandeliagWallIdx = -1;
+      const bag3dWall = state.logistics.bag3d;
+      if (bag3dWall && bag3dWall.oppScheidingsmuur > 30) {
+        let minFrontDot = Infinity;
+        for (let wi = 0; wi < n; wi++) {
+          const wp1 = pts[wi], wp2 = pts[(wi + 1) % n];
+          const wvx = wp2.x - wp1.x, wvy = wp2.y - wp1.y;
+          const wlen = Math.hypot(wvx, wvy);
+          if (wlen < 1.5) continue;
+          const wnx = wvy / wlen * sign, wny = -wvx / wlen * sign;
+          const dotStraat = (rotAngle !== 0) ? Math.abs(-wnx) : Math.abs(wnx * toStreetX + wny * toStreetY);
+          if (dotStraat < minFrontDot) { minFrontDot = dotStraat; mandeliagWallIdx = wi; }
+        }
+      }
+      let mandeliagSvg = '';
+      if (mandeliagWallIdx >= 0) {
+        const mw1 = pts[mandeliagWallIdx], mw2 = pts[(mandeliagWallIdx + 1) % n];
+        const mi1 = innerPts[mandeliagWallIdx], mi2 = innerPts[(mandeliagWallIdx + 1) % n];
+        mandeliagSvg = `
+          <polygon points="${mw1.x.toFixed(3)},${mw1.y.toFixed(3)} ${mw2.x.toFixed(3)},${mw2.y.toFixed(3)} ${mi2.x.toFixed(3)},${mi2.y.toFixed(3)} ${mi1.x.toFixed(3)},${mi1.y.toFixed(3)}"
+            fill="url(#mandeliagHatch)" stroke="#0f172a" stroke-width="0.04" />
+        `;
+      }
+
       wrapper.innerHTML = `
         <svg viewBox="${viewBoxX.toFixed(2)} ${viewBoxY.toFixed(2)} ${width.toFixed(2)} ${height.toFixed(2)}" class="w-full h-full" preserveAspectRatio="xMidYMid meet">
           <defs>
@@ -2846,6 +2898,9 @@
             <marker id="dotAmber" markerWidth="4" markerHeight="4" refX="2" refY="2">
               <circle cx="2" cy="2" r="1.3" fill="#d97706" />
             </marker>
+            <pattern id="mandeliagHatch" width="0.3" height="0.3" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+              <line x1="0" y1="0" x2="0" y2="0.3" stroke="#64748b" stroke-width="0.06" />
+            </pattern>
           </defs>
 
           <!-- 1. Achtergrond raster (onderste laag van het hele canvas) -->
@@ -2858,6 +2913,9 @@
 
           <!-- 3. Massieve architectonische gevelmuur op werkelijke schaaldikte (spouwmuur massief donker leisteen) -->
           <path d="${outerPath} ${innerPath}" fill="#334155" fill-rule="evenodd" stroke="#0f172a" stroke-width="0.04" stroke-linejoin="round" />
+
+          <!-- 3b. Mandelige (woningscheidende) muur gearceerd -->
+          ${mandeliagSvg}
 
           <!-- 4. Maatvoeringen -->
           ${dimSvg}
