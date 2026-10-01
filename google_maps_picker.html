@@ -815,6 +815,14 @@
       initSearchInputListeners();
       syncStateToUi();
       loadGoogleMapsSdk();
+
+      // Direct 3D BAG data ophalen als er al een pandId bekend is (hardcoded state)
+      if (state.logistics.pandId && state.logistics.pandId !== '-') {
+        fetch3dBagComplete(state.logistics.pandId);
+        // Geen re-render hier: Google Maps is nog niet geladen,
+        // dus straatrichting is nog niet beschikbaar.
+        // De data is beschikbaar bij de eerstvolgende renderFloorplan() call.
+      }
     });
 
     // --- GOOGLE MAPS LOADER (MET DE GELDIGE API KEY) ---
@@ -1072,6 +1080,7 @@
 
     async function fetch3dBagComplete(pandId) {
       try {
+        console.log('[3D BAG] Start ophalen voor pandId:', pandId);
         const cleanId = pandId.replace(/^NL\.IMBAG\.Pand\./, '');
         const res = await fetch(`https://api.3dbag.nl/collections/pand/items/NL.IMBAG.Pand.${cleanId}`);
         if (!res.ok) return;
@@ -1222,6 +1231,7 @@
 
         // ── 5. Opslaan in state ──
         state.logistics.bag3d = bag3d;
+        console.log('[3D BAG DEBUG] bag3d opgeslagen:', JSON.stringify({oppScheiding: bag3d.oppScheidingsmuur, bouwtypologie: bag3d.bouwtypologie, volumes: bag3d.volumes.length, dakvlakken: bag3d.dakvlakken.length}));
 
         // Backward-compatible velden behouden
         state.logistics.nokhoogte = bag3d.nokhoogte || state.logistics.nokhoogte;
@@ -1299,7 +1309,7 @@
         }
 
       } catch (err) {
-        console.warn('3D BAG ophalen mislukt:', err);
+        console.error('[3D BAG FOUT]', err.message, err.stack);
       }
     }
 
@@ -2613,8 +2623,10 @@
         const outNy = -vx / len * sign;
         // In geroteerde toestand wijst de straat naar links (-1, 0), anders (toStreetX, toStreetY)
         const dot = (rotAngle !== 0) ? -outNx : (outNx * toStreetX + outNy * toStreetY);
-        if (dot > bestFrontDot) {
-          bestFrontDot = dot;
+        // Gewogen score: richting × lengte (langere gevels winnen bij gelijke richting)
+        const score = dot * Math.sqrt(len);
+        if (score > bestFrontDot) {
+          bestFrontDot = score;
           floorFrontWallIdx = i;
         }
       }
@@ -2933,17 +2945,29 @@
       // ── Mandelige muur detectie (woningscheidende gevel) ──
       let mandeliagWallIdx = -1;
       const bag3dWall = state.logistics.bag3d;
+      console.log('[MANDELIG DEBUG] bag3dWall:', bag3dWall ? 'exists, oppScheiding=' + bag3dWall.oppScheidingsmuur : 'null/undefined');
       if (bag3dWall && bag3dWall.oppScheidingsmuur > 30) {
-        let minFrontDot = Infinity;
+        // Woningscheidende muur = LANGSTE zijmuur (PARALLEL aan de straat, dus normaal LOODRECHT op straat)
+        // Een zijmuur heeft een normaal die bijna LOODRECHT op de straatrichting staat:
+        // dot(normaal, straatrichting) ≈ 0 = parallel aan straat = VOORZIJDE/ACHTERGEVEL
+        // dot(normaal, straatrichting) ≈ 1 = loodrecht op straat = ZIJGEVEL
+        let bestScore = -Infinity;
         for (let wi = 0; wi < n; wi++) {
           const wp1 = pts[wi], wp2 = pts[(wi + 1) % n];
           const wvx = wp2.x - wp1.x, wvy = wp2.y - wp1.y;
           const wlen = Math.hypot(wvx, wvy);
-          if (wlen < 1.5) continue;
+          if (wlen < 3.0) continue;
           const wnx = wvy / wlen * sign, wny = -wvx / wlen * sign;
+          // Hoe LOODRECHT op de straat (hoge dot = zijmuur)
           const dotStraat = (rotAngle !== 0) ? Math.abs(-wnx) : Math.abs(wnx * toStreetX + wny * toStreetY);
-          if (dotStraat < minFrontDot) { minFrontDot = dotStraat; mandeliagWallIdx = wi; }
+          // Score: hoge dot (zijmuur) + langere muren
+          const score = dotStraat * wlen;
+          if (dotStraat > 0.5 && score > bestScore) {
+            bestScore = score;
+            mandeliagWallIdx = wi;
+          }
         }
+        console.log('[MANDELIG] Gevonden wandIdx:', mandeliagWallIdx, 'score:', bestScore.toFixed(2));
       }
       let mandeliagSvg = '';
       if (mandeliagWallIdx >= 0) {
@@ -2969,7 +2993,7 @@
               <circle cx="2" cy="2" r="1.3" fill="#d97706" />
             </marker>
             <pattern id="mandeliagHatch" width="0.3" height="0.3" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
-              <line x1="0" y1="0" x2="0" y2="0.3" stroke="#64748b" stroke-width="0.06" />
+              <line x1="0" y1="0" x2="0" y2="0.3" stroke="#ef4444" stroke-width="0.08" />
             </pattern>
           </defs>
 
